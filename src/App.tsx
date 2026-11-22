@@ -23,7 +23,10 @@ import {
   type CustomMapPin,
   type FactionId,
 } from "./config/mapConfig";
-import type { HideoutUpgradeDef } from "./data/hideoutData";
+import type {
+  DisassemblyRecipeDef,
+  HideoutUpgradeDef,
+} from "./data/hideoutData";
 import {
   HideoutTrackerPanel,
   type PlannerViewId,
@@ -45,6 +48,7 @@ import {
 } from "./services/gzwApi";
 import {
   buildAllHideoutUpgrades,
+  buildDisassemblyCatalogMaterial,
   buildDisassemblyRecipes,
   buildMaterialsCatalog,
   type CatalogMaterial,
@@ -466,6 +470,14 @@ export default function App() {
       setIsLookupLoading(false);
     }
   }, []);
+
+  const handleInspectDisassemblyItem = useCallback(
+    (recipe: DisassemblyRecipeDef) => {
+      const mat = buildDisassemblyCatalogMaterial(recipe);
+      handleInspectMaterial(mat);
+    },
+    [handleInspectMaterial]
+  );
 
   const handleLocateTaskOnMap = useCallback((task: GzwTaskDef) => {
     setInspectedMaterial(null);
@@ -1236,6 +1248,7 @@ export default function App() {
               onToggleMapMaterial={handleToggleMapMaterial}
               selectedMaterialKey={inspectedMaterial?.key || null}
               onInspectMaterial={handleInspectMaterial}
+              onInspectDisassemblyItem={handleInspectDisassemblyItem}
               onInspectApiRecord={handleInspectApiRecord}
               onArmPinDrop={handleArmPinDrop}
               catalog={catalog}

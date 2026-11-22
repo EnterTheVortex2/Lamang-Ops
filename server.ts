@@ -16,6 +16,8 @@ const DATASET_MATCH_PATTERN =
 const PRIORITY_DATASETS = [
   "hideout_modules",
   "disassembly_recipes",
+  "disassembly_material",
+  "crafting_material",
   "building_material",
   "workshop_supplies",
   "laboratory_supplies",
@@ -209,7 +211,10 @@ function normalizeRecord(
   const category = String(raw.type || raw.category || raw.room || raw.slot || dataset);
   const rawImage =
     typeof raw.image === "string" && raw.image.trim() ? raw.image.trim() : null;
-  const image = rawImage ? toProxiedImageUrl(rawImage) : null;
+  const image =
+    rawImage && !rawImage.toLowerCase().includes("missing_icon")
+      ? toProxiedImageUrl(rawImage)
+      : null;
 
   let sellPrice: string | undefined;
   if (typeof raw.sell_price === "string") {

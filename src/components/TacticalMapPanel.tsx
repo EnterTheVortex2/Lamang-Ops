@@ -1875,6 +1875,12 @@ export function TacticalMapPanel({
     const activeMaterialsToPlot = catalog.filter(
       (m) => tickedMapMaterials[m.key] || inspectedMaterial?.key === m.key
     );
+    if (
+      inspectedMaterial &&
+      !activeMaterialsToPlot.some((m) => m.key === inspectedMaterial.key)
+    ) {
+      activeMaterialsToPlot.push(inspectedMaterial);
+    }
 
     activeMaterialsToPlot.forEach((mat) => {
       const pts = resolveSpawnPointsForMaterial(mat, customPins);
@@ -3530,7 +3536,9 @@ export function TacticalMapPanel({
               />
               <div className="min-w-0">
                 <div className="text-[11px] font-medium text-[#38bdf8]">
-                  Known Material Spawns
+                  {inspectedMaterial.dataset === "Disassembly Item"
+                    ? "Known Disassembly Spawns"
+                    : "Known Material Spawns"}
                 </div>
                 <h3 className="font-display text-base font-semibold text-[#f1f5f9] truncate">
                   {inspectedMaterial.name}
@@ -3591,7 +3599,9 @@ export function TacticalMapPanel({
 
             <div>
               <div className="font-semibold text-[#dce4ee] mb-1">
-                API Loot Tables &amp; Containers
+                {inspectedMaterial.dataset === "Disassembly Item"
+                  ? "Disassembly & Spawn Intel"
+                  : "API Loot Tables & Containers"}
               </div>
               {isLookupLoading ? (
                 <div className="text-[#8b98a9] py-1">

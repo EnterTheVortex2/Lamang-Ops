@@ -22,12 +22,39 @@ export interface HideoutUpgradeDef {
   requirements: { name: string; quantity: number }[];
 }
 
+export type DisassemblyCategory =
+  | "Electronics & Comms"
+  | "Containers & Chem"
+  | "Avionics & Weapons";
+
+export type DisassemblyOutcomeKind =
+  | "Crafting Material"
+  | "Intel / Data Drive"
+  | "Canister / Biohazard"
+  | "Module";
+
+export interface DisassemblyOutcomeDetail {
+  name: string;
+  kind: DisassemblyOutcomeKind;
+  sellPrice?: string;
+  gridSize?: string;
+  weight?: string;
+  image?: string | null;
+}
+
 export interface DisassemblyRecipeDef {
   id: string;
   name: string;
   duration: string;
   outcomes: string[];
+  outcomeDetails: DisassemblyOutcomeDetail[];
   sellPrice?: string;
+  gridSize?: string;
+  weight?: string;
+  manufacturer?: string;
+  category: DisassemblyCategory;
+  image?: string | null;
+  station: string;
 }
 
 export interface HideoutRoomMeta {
@@ -1062,34 +1089,392 @@ export const FALLBACK_DISASSEMBLY_RECIPES: DisassemblyRecipeDef[] = [
     name: "Artillery Ballistic Calculator",
     duration: "4 hours",
     outcomes: ["LAF Artillery Data Logs", "CPU Card"],
+    outcomeDetails: [
+      {
+        name: "LAF Artillery Data Logs",
+        kind: "Intel / Data Drive",
+      },
+      {
+        name: "CPU Card",
+        kind: "Crafting Material",
+        sellPrice: "$4,000",
+        gridSize: "1x1",
+        weight: "0.3kg",
+        image:
+          "https://static.wikia.nocookie.net/gray-zone-warfare/images/7/79/CPU_Card_inspect.png/revision/latest/scale-to-width-down/268?cb=20261108044752",
+      },
+    ],
     sellPrice: "$8,000",
+    gridSize: "1x2",
+    weight: "1.7kg",
+    manufacturer: "General Local",
+    category: "Avionics & Weapons",
+    image:
+      "https://static.wikia.nocookie.net/gray-zone-warfare/images/8/87/Artillery_Ballistic_Calculator_inspect.png/revision/latest/scale-to-width-down/268?cb=20261107024456",
+    station: "Electronics Workshop",
+  },
+  {
+    id: "imsi-catcher",
+    name: "IMSI Catcher",
+    duration: "4 hours",
+    outcomes: ["Incriminating Phone Logs", "Spoofing ASIC Module"],
+    outcomeDetails: [
+      {
+        name: "Incriminating Phone Logs",
+        kind: "Intel / Data Drive",
+        sellPrice: "$6,400",
+      },
+      {
+        name: "Spoofing ASIC Module",
+        kind: "Crafting Material",
+        sellPrice: "$4,000",
+        gridSize: "1x1",
+        weight: "0.32kg",
+        image:
+          "https://static.wikia.nocookie.net/gray-zone-warfare/images/2/2c/Spoofing_ASIC_Module_inspect.png/revision/latest/scale-to-width-down/268?cb=20261107050846",
+      },
+    ],
+    sellPrice: "$8,000",
+    gridSize: "2x2",
+    weight: "8kg",
+    manufacturer: "General Local",
+    category: "Electronics & Comms",
+    image:
+      "https://static.wikia.nocookie.net/gray-zone-warfare/images/e/e6/IMSI_Catcher_inspect.png/revision/latest/scale-to-width-down/268?cb=20261106162532",
+    station: "Electronics Workshop",
+  },
+  {
+    id: "unlra-field-terminal",
+    name: "UNLRA Field Terminal",
+    duration: "4 hours",
+    outcomes: ["UNLRA Relief Manifest", "Multi-Bus Converter"],
+    outcomeDetails: [
+      {
+        name: "UNLRA Relief Manifest",
+        kind: "Intel / Data Drive",
+      },
+      {
+        name: "Multi-Bus Converter",
+        kind: "Crafting Material",
+        sellPrice: "$4,000",
+        gridSize: "1x1",
+        weight: "0.25kg",
+        image:
+          "https://static.wikia.nocookie.net/gray-zone-warfare/images/e/e8/Multi-Bus_Converter_inspect.png/revision/latest?cb=20261102054420",
+      },
+    ],
+    sellPrice: "$8,000",
+    gridSize: "2x1",
+    weight: "0.72kg",
+    manufacturer: "General Local",
+    category: "Electronics & Comms",
+    image:
+      "https://static.wikia.nocookie.net/gray-zone-warfare/images/2/26/UNLRA_Field_Terminal_inspect.png/revision/latest?cb=20261028195902",
+    station: "Electronics Workshop",
   },
   {
     id: "baget-53-31-onboard-computer",
     name: "Baget-53-31 Onboard Computer",
     duration: "6 hours",
     outcomes: ["Flight Data Drive", "Avionics Processor Board"],
+    outcomeDetails: [
+      {
+        name: "Flight Data Drive",
+        kind: "Intel / Data Drive",
+        sellPrice: "$9,600",
+      },
+      {
+        name: "Avionics Processor Board",
+        kind: "Crafting Material",
+        sellPrice: "$6,000",
+        gridSize: "1x1",
+        weight: "0.5kg",
+        image:
+          "https://static.wikia.nocookie.net/gray-zone-warfare/images/6/61/Avionics_Processor_Board_inspect.png/revision/latest/scale-to-width-down/268?cb=20261109182711",
+      },
+    ],
     sellPrice: "$12,000",
+    gridSize: "2x1",
+    weight: "2.25kg",
+    manufacturer: "General East",
+    category: "Avionics & Weapons",
+    image:
+      "https://static.wikia.nocookie.net/gray-zone-warfare/images/b/bc/Baget-53-31_Onboard_Computer_inspect.png/revision/latest/scale-to-width-down/268?cb=20261024200431",
+    station: "Electronics Workshop",
+  },
+  {
+    id: "drone-interceptor",
+    name: "Drone Interceptor",
+    duration: "6 hours",
+    outcomes: ["AI Targeting Module"],
+    outcomeDetails: [
+      {
+        name: "AI Targeting Module",
+        kind: "Module",
+      },
+    ],
+    sellPrice: "$12,000",
+    gridSize: "2x2",
+    weight: "1.3kg",
+    manufacturer: "Russian Army",
+    category: "Avionics & Weapons",
+    image:
+      "https://static.wikia.nocookie.net/gray-zone-warfare/images/e/ec/Drone_Interceptor_inspect.png/revision/latest/scale-to-width-down/268?cb=20261107045535",
+    station: "Electronics Workshop",
+  },
+  {
+    id: "manpack-tactical-radio",
+    name: "Manpack Tactical Radio",
+    duration: "6 hours",
+    outcomes: ["Encryption Key Drive", "FPGA Module"],
+    outcomeDetails: [
+      {
+        name: "Encryption Key Drive",
+        kind: "Intel / Data Drive",
+      },
+      {
+        name: "FPGA Module",
+        kind: "Crafting Material",
+        sellPrice: "$6,000",
+        gridSize: "2x1",
+        weight: "0.2kg",
+        image:
+          "https://static.wikia.nocookie.net/gray-zone-warfare/images/7/7e/FPGA_Module_inspect.png/revision/latest/scale-to-width-down/268?cb=20261024200429",
+      },
+    ],
+    sellPrice: "$12,000",
+    gridSize: "2x1",
+    weight: "2.5kg",
+    manufacturer: "General Local",
+    category: "Electronics & Comms",
+    image:
+      "https://static.wikia.nocookie.net/gray-zone-warfare/images/1/19/Manpack_Tactical_Radio_inspect.png/revision/latest/scale-to-width-down/268?cb=20261028195627",
+    station: "Electronics Workshop",
+  },
+  {
+    id: "missile-seeker-head",
+    name: "Missile Seeker Head",
+    duration: "6 hours",
+    outcomes: ["Missile Guidance Circuit"],
+    outcomeDetails: [
+      {
+        name: "Missile Guidance Circuit",
+        kind: "Module",
+      },
+    ],
+    sellPrice: "$12,000",
+    gridSize: "2x2",
+    weight: "3kg",
+    manufacturer: "Russian Army",
+    category: "Avionics & Weapons",
+    image:
+      "https://static.wikia.nocookie.net/gray-zone-warfare/images/a/a8/Missile_Seeker_Head_inspect.png/revision/latest?cb=20261024200424",
+    station: "Electronics Workshop",
+  },
+  {
+    id: "st1122-storage-computer",
+    name: "ST1122 Storage Computer",
+    duration: "6 hours",
+    outcomes: ["Incriminating Data Drive", "Server RAM Module"],
+    outcomeDetails: [
+      {
+        name: "Incriminating Data Drive",
+        kind: "Intel / Data Drive",
+        sellPrice: "$9,600",
+      },
+      {
+        name: "Server RAM Module",
+        kind: "Crafting Material",
+        sellPrice: "$6,000",
+        gridSize: "2x1",
+        weight: "0.05kg",
+        image:
+          "https://static.wikia.nocookie.net/gray-zone-warfare/images/7/73/Server_RAM_Module_inspect.png/revision/latest/scale-to-width-down/268?cb=20261024200428",
+      },
+    ],
+    sellPrice: "$12,000",
+    gridSize: "2x1",
+    weight: "4kg",
+    manufacturer: "General Local",
+    category: "Electronics & Comms",
+    image:
+      "https://static.wikia.nocookie.net/gray-zone-warfare/images/d/d3/ST1122_Storage_Computer_inspect.png/revision/latest/scale-to-width-down/268?cb=20261107045525",
+    station: "Electronics Workshop",
   },
   {
     id: "chemical-containment-container",
     name: "Chemical Containment Container",
     duration: "8 hours",
     outcomes: ["Biohazard Canister"],
+    outcomeDetails: [
+      {
+        name: "Biohazard Canister",
+        kind: "Canister / Biohazard",
+      },
+    ],
     sellPrice: "$18,000",
+    gridSize: "2x2",
+    weight: "5kg",
+    manufacturer: "General Local",
+    category: "Containers & Chem",
+    image: null,
+    station: "Electronics Workshop / Lab",
   },
   {
     id: "chemical-munitions-container",
     name: "Chemical Munitions Container",
     duration: "8 hours",
     outcomes: ["Sarin Canister"],
+    outcomeDetails: [
+      {
+        name: "Sarin Canister",
+        kind: "Canister / Biohazard",
+        sellPrice: "$12,000",
+      },
+    ],
     sellPrice: "$12,000",
+    gridSize: "2x2",
+    weight: "5kg",
+    manufacturer: "General Local",
+    category: "Containers & Chem",
+    image:
+      "https://static.wikia.nocookie.net/gray-zone-warfare/images/5/50/Chemical_Munitions_Container_icon.png/revision/latest/scale-to-width-down/110?cb=20261104174035",
+    station: "Electronics Workshop / Lab",
   },
   {
     id: "counter-ied-jammer-unit",
     name: "Counter IED/Jammer Unit",
     duration: "8 hours",
-    outcomes: ["Electronic Warfare Configuration Drive", "Digital Synthesis Engine"],
+    outcomes: [
+      "Electronic Warfare Configuration Drive",
+      "Digital Synthesis Engine",
+    ],
+    outcomeDetails: [
+      {
+        name: "Electronic Warfare Configuration Drive",
+        kind: "Intel / Data Drive",
+      },
+      {
+        name: "Digital Synthesis Engine",
+        kind: "Crafting Material",
+        sellPrice: "$9,000",
+        gridSize: "1x1",
+        weight: "0.1kg",
+        image:
+          "https://static.wikia.nocookie.net/gray-zone-warfare/images/8/8e/Digital_Synthesis_Engine_inspect.png/revision/latest?cb=20261026212133",
+      },
+    ],
     sellPrice: "$18,000",
+    gridSize: "2x2",
+    weight: "9kg",
+    manufacturer: "General Local",
+    category: "Electronics & Comms",
+    image:
+      "https://static.wikia.nocookie.net/gray-zone-warfare/images/9/9f/Counter_IED-Jammer_Unit_inspect.png/revision/latest/scale-to-width-down/268?cb=20261024231625",
+    station: "Electronics Workshop",
+  },
+  {
+    id: "last-line-defense-container",
+    name: "Last Line Defense Container",
+    duration: "8 hours",
+    outcomes: ["Nerve Gas Canister"],
+    outcomeDetails: [
+      {
+        name: "Nerve Gas Canister",
+        kind: "Canister / Biohazard",
+      },
+    ],
+    sellPrice: "$18,000",
+    gridSize: "2x2",
+    weight: "4kg",
+    manufacturer: "General Local",
+    category: "Containers & Chem",
+    image:
+      "https://static.wikia.nocookie.net/gray-zone-warfare/images/3/35/Last_Line_Defense_Container_inspect.png/revision/latest/scale-to-width-down/268?cb=20261028195624",
+    station: "Electronics Workshop / Lab",
+  },
+  {
+    id: "portable-satcom-terminal",
+    name: "Portable SATCOM Terminal",
+    duration: "8 hours",
+    outcomes: [
+      "Uplink Credentials Drive",
+      "Oven-Controlled Crystal Oscillator",
+    ],
+    outcomeDetails: [
+      {
+        name: "Uplink Credentials Drive",
+        kind: "Intel / Data Drive",
+      },
+      {
+        name: "Oven-Controlled Crystal Oscillator",
+        kind: "Crafting Material",
+        sellPrice: "$9,000",
+        gridSize: "1x1",
+        weight: "0.01kg",
+        image:
+          "https://static.wikia.nocookie.net/gray-zone-warfare/images/c/c2/Oven-Controlled_Crystal_Oscillator_inspect.png/revision/latest?cb=20261026212131",
+      },
+    ],
+    sellPrice: "$18,000",
+    gridSize: "2x2",
+    weight: "6.1kg",
+    manufacturer: "General Local",
+    category: "Electronics & Comms",
+    image:
+      "https://static.wikia.nocookie.net/gray-zone-warfare/images/3/37/Portable_SATCOM_Terminal_inspect.png/revision/latest?cb=20261026020134",
+    station: "Electronics Workshop",
+  },
+  {
+    id: "radar-signal-processor",
+    name: "Radar Signal Processor",
+    duration: "8 hours",
+    outcomes: [
+      "Deep-Space Observation Data Drive",
+      "High-Speed Digital Processor Board",
+    ],
+    outcomeDetails: [
+      {
+        name: "Deep-Space Observation Data Drive",
+        kind: "Intel / Data Drive",
+        sellPrice: "$12,000",
+      },
+      {
+        name: "High-Speed Digital Processor Board",
+        kind: "Crafting Material",
+        sellPrice: "$9,000",
+        gridSize: "2x1",
+        weight: "0.1kg",
+        image:
+          "https://static.wikia.nocookie.net/gray-zone-warfare/images/6/63/High-Speed_Digital_Processor_Board_inspect.png/revision/latest/scale-to-width-down/268?cb=20261026212129",
+      },
+    ],
+    sellPrice: "$18,000",
+    gridSize: "2x2",
+    weight: "5kg",
+    manufacturer: "General Local",
+    category: "Electronics & Comms",
+    image:
+      "https://static.wikia.nocookie.net/gray-zone-warfare/images/7/71/Radar_Signal_Processor_inspect.png/revision/latest/scale-to-width-down/268?cb=20261024231628",
+    station: "Electronics Workshop",
+  },
+  {
+    id: "radioisotope-fuel-cell",
+    name: "Radioisotope Fuel Cell",
+    duration: "8 hours",
+    outcomes: ["Plutonium Canister"],
+    outcomeDetails: [
+      {
+        name: "Plutonium Canister",
+        kind: "Canister / Biohazard",
+      },
+    ],
+    sellPrice: "$18,000",
+    gridSize: "1x2",
+    weight: "4kg",
+    manufacturer: "General Local",
+    category: "Containers & Chem",
+    image: null,
+    station: "Electronics Workshop / Lab",
   },
 ];

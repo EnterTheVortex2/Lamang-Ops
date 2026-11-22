@@ -2,7 +2,11 @@ import { useMemo, useState } from "react";
 import {
   Check,
   ClipboardList,
+  Clock,
+  Cpu,
   Crosshair,
+  FlaskConical,
+  HardDrive,
   MapPin,
   Minus,
   Plus,
@@ -11,6 +15,9 @@ import {
 } from "lucide-react";
 import {
   HIDEOUT_ROOMS,
+  type DisassemblyCategory,
+  type DisassemblyOutcomeDetail,
+  type DisassemblyOutcomeKind,
   type DisassemblyRecipeDef,
   type HideoutUpgradeDef,
   type RoomId,
@@ -20,7 +27,10 @@ import {
   type ApiCachePayload,
   type NormalizedApiRecord,
 } from "../services/gzwApi";
-import type { CatalogMaterial } from "../utils/catalogBuilder";
+import {
+  getDisassemblySpawnSummary,
+  type CatalogMaterial,
+} from "../utils/catalogBuilder";
 import { ItemThumbnail } from "./ItemThumbnail";
 
 export type PlannerViewId = "planner" | "manifest" | "disassembly" | "api-search";
@@ -41,6 +51,7 @@ interface HideoutTrackerPanelProps {
   onToggleMapMaterial: (matKey: string, visible: boolean) => void;
   selectedMaterialKey: string | null;
   onInspectMaterial: (mat: CatalogMaterial) => void;
+  onInspectDisassemblyItem: (recipe: DisassemblyRecipeDef) => void;
   onInspectApiRecord: (rec: NormalizedApiRecord) => void;
   onArmPinDrop: (matId: string) => void;
   catalog: CatalogMaterial[];
@@ -69,6 +80,7 @@ export function HideoutTrackerPanel({
   onToggleMapMaterial,
   selectedMaterialKey,
   onInspectMaterial,
+  onInspectDisassemblyItem,
   onInspectApiRecord,
   onArmPinDrop,
   catalog,
@@ -81,6 +93,12 @@ export function HideoutTrackerPanel({
   const [tierFilter, setTierFilter] = useState<0 | 1 | 2 | 3>(0);
   const [statusFilter, setStatusFilter] = useState<"all" | "planned" | "unbuilt" | "built">("all");
   const [manifestScope, setManifestScope] = useState<"planned" | "unbuilt">("planned");
+  const [disassemblyDurationFilter, setDisassemblyDurationFilter] = useState<
+    "all" | "4 hours" | "6 hours" | "8 hours"
+  >("all");
+  const [disassemblyCategoryFilter, setDisassemblyCategoryFilter] = useState<
+    "all" | DisassemblyCategory
+  >("all");
 
   const [apiQuery, setApiQuery] = useState("");
   const [apiDatasetFilter, setApiDatasetFilter] = useState("ALL");
@@ -244,7 +262,11 @@ export function HideoutTrackerPanel({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search upgrade or material..."
+              placeholder={
+                activeView === "disassembly"
+                  ? "Search disassembly item or yielded material..."
+                  : "Search upgrade or material..."
+              }
               className="w-full min-h-[36px] bg-[#0a0e14] border border-white/[0.08] rounded-lg pl-9 pr-3 py-1.5 text-[13px] text-[#f1f5f9] placeholder:text-[#66778b] focus:outline-none focus:border-[#e5a93c] transition-colors"
             />
           </div>
@@ -814,66 +836,256 @@ export function HideoutTrackerPanel({
         )}
 
         {/* ================================================================
-            VIEW 3: DISASSEMBLY RECIPES
+            VIEW 3: DISASSEMBLY ITEMS & YIELDED MATERIALS
            ================================================================ */}
-        {activeView === "disassembly" && (
-          <div className="space-y-3">
-            <div className="rounded-xl bg-[#141b26] border border-white/[0.075] p-4">
-              <div className="flex items-center gap-2">
-                <Wrench className="w-4 h-4 text-[#e5a93c]" />
-                <h2 className="font-display text-base font-semibold text-[#f8fafc]">
-                  Hideout Disassembly Recipes
-                </h2>
-              </div>
-              <p className="text-[13px] text-[#a9b8ca] mt-1 leading-relaxed">
-                Tactical devices and containers you can break down in the Electronics Workshop and Laboratory.
-              </p>
-            </div>
+        {activeView === "disassembly" && (() => {
+          const filteredDisassembly = disassemblyRecipes.filter((r) => {
+            if (
+              disassemblyDurationFilter !== "all" &&
+              r.duration !== disassemblyDurationFilter
+            ) {
+              return false;
+            }
+            if (
+              disassemblyCategoryFilter !== "all" &&
+              r.category !== disassemblyCategoryFilter
+            ) {
+              return false;
+            }
+            const q = searchQuery.trim().toLowerCase();
+            if (!q) return true;
+            const spawnSummary = getDisassemblySpawnSummary(r.name);
+            return (
+              r.name.toLowerCase().includes(q) ||
+              r.category.toLowerCase().includes(q) ||
+              r.outcomes.some((o) => o.toLowerCase().includes(q)) ||
+              spawnSummary.pois.some((p) => p.toLowerCase().includes(q))
+            );
+          });
 
-            <div className="grid grid-cols-1 gap-3">
-              {disassemblyRecipes
-                .filter((r) => {
-                  const q = searchQuery.trim().toLowerCase();
-                  if (!q) return true;
-                  return (
-                    r.name.toLowerCase().includes(q) ||
-                    r.outcomes.some((o) => o.toLowerCase().includes(q))
-                  );
-                })
-                .map((rec) => (
-                  <div
-                    key={rec.id}
-                    className="rounded-xl bg-[#141b26] border border-white/[0.075] p-4"
+          const renderOutcomeIcon = (kind: DisassemblyOutcomeKind) => {
+            if (kind === "Crafting Material") {
+              return <Cpu className="w-3.5 h-3.5 text-[#34d399]" />;
+            }
+            if (kind === "Intel / Data Drive") {
+              return <HardDrive className="w-3.5 h-3.5 text-[#38bdf8]" />;
+            }
+            if (kind === "Canister / Biohazard") {
+              return <FlaskConical className="w-3.5 h-3.5 text-[#e5a93c]" />;
+            }
+            return <Wrench className="w-3.5 h-3.5 text-[#cbd5e1]" />;
+          };
+
+          return (
+            <div className="space-y-3.5">
+              {/* Overview & Filter Controls */}
+              <div className="rounded-xl bg-[#141b26] border border-white/[0.075] p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Wrench className="w-4 h-4 text-[#e5a93c] shrink-0" />
+                      <h2 className="font-display text-base font-semibold text-[#f8fafc]">
+                        Hideout Disassembly Catalog
+                      </h2>
+                    </div>
+                    <p className="text-[12.5px] text-[#a9b8ca] mt-1 leading-relaxed">
+                      Place salvaged tech or containment units into your{" "}
+                      <span className="text-[#e2e8f0] font-medium">Electronics Workshop</span>{" "}
+                      disassembly storage to extract crafting parts, data drives, and canisters.
+                      Items break down sequentially (top-left slot first) and timers continue
+                      while offline; moving an active item resets its progress.
+                    </p>
+                  </div>
+                  <span className="font-mono-tabular text-xs font-semibold text-[#e5a93c] whitespace-nowrap shrink-0">
+                    {filteredDisassembly.length} / {disassemblyRecipes.length}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap pt-1">
+                  <select
+                    aria-label="Filter disassembly items by category"
+                    value={disassemblyCategoryFilter}
+                    onChange={(e) =>
+                      setDisassemblyCategoryFilter(
+                        e.target.value as "all" | DisassemblyCategory
+                      )
+                    }
+                    className="min-h-[32px] bg-[#0a0e14] border border-white/[0.08] rounded-lg px-2.5 py-1 text-xs text-[#f1f5f9] focus:outline-none focus:border-[#e5a93c]"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h3 className="font-display text-[15px] font-semibold text-[#f8fafc]">
-                          {rec.name}
-                        </h3>
-                        <div className="font-mono-tabular text-xs text-[#9fb0c4] mt-1">
-                          Duration: {rec.duration}
-                          {rec.sellPrice && (
-                            <span className="text-[#e5a93c] ml-2">· {rec.sellPrice}</span>
+                    <option value="all">
+                      All Categories ({disassemblyRecipes.length})
+                    </option>
+                    <option value="Electronics & Comms">Electronics &amp; Comms</option>
+                    <option value="Containers & Chem">Containers &amp; Chem</option>
+                    <option value="Avionics & Weapons">Avionics &amp; Weapons</option>
+                  </select>
+
+                  <div className="flex items-center rounded-lg bg-[#0a0e14] border border-white/[0.07] p-0.5">
+                    {(
+                      [
+                        { id: "all", label: "All Times" },
+                        { id: "4 hours", label: "4h" },
+                        { id: "6 hours", label: "6h" },
+                        { id: "8 hours", label: "8h" },
+                      ] as const
+                    ).map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => setDisassemblyDurationFilter(d.id)}
+                        className={`px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                          disassemblyDurationFilter === d.id
+                            ? "bg-[#141b26] text-[#e5a93c] ring-1 ring-white/[0.08]"
+                            : "text-[#94a3b8] hover:text-[#e2e8f0]"
+                        }`}
+                      >
+                        {d.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* 15 Disassembly Cards */}
+              {filteredDisassembly.length === 0 ? (
+                <div className="rounded-xl border border-white/[0.075] bg-[#141b26] p-8 text-center text-[13px] text-[#9fb0c4]">
+                  No disassembly items matched your current search or filter.
+                </div>
+              ) : (
+                <div
+                  className={`grid gap-3 ${
+                    isExpanded ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"
+                  }`}
+                >
+                  {filteredDisassembly.map((rec) => {
+                    const spawnInfo = getDisassemblySpawnSummary(rec.name);
+                    const isInspected = selectedMaterialKey === `disassembly_${rec.id}`;
+                    const outcomeDetails: DisassemblyOutcomeDetail[] =
+                      rec.outcomeDetails && rec.outcomeDetails.length > 0
+                        ? rec.outcomeDetails
+                        : rec.outcomes.map((o) => ({
+                            name: o,
+                            kind: "Module" as const,
+                          }));
+
+                    return (
+                      <div
+                        key={rec.id}
+                        className={`rounded-xl border p-4 flex flex-col justify-between transition-colors ${
+                          isInspected
+                            ? "bg-[#15202e] border-[#38bdf8]/75 shadow-lg"
+                            : "bg-[#141b26] border-white/[0.075] hover:border-white/[0.16]"
+                        }`}
+                      >
+                        <div className="space-y-3">
+                          {/* Item Header */}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3 min-w-0">
+                              <ItemThumbnail
+                                src={rec.image}
+                                alt={rec.name}
+                                sizeClass="w-11 h-11"
+                              />
+                              <div className="min-w-0">
+                                <div className="text-[11px] font-medium text-[#9fb0c4] truncate">
+                                  {rec.category}
+                                </div>
+                                <h3 className="font-display text-[15px] font-semibold text-[#f8fafc] leading-snug">
+                                  {rec.name}
+                                </h3>
+                                <div className="font-mono-tabular text-[11px] text-[#8fa1b6] mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                  <span className="inline-flex items-center gap-1 text-[#cbd5e1]">
+                                    <Clock className="w-3 h-3 text-[#38bdf8]" />
+                                    {rec.duration}
+                                  </span>
+                                  {rec.gridSize && <span>· {rec.gridSize}</span>}
+                                  {rec.weight && <span>· {rec.weight}</span>}
+                                </div>
+                              </div>
+                            </div>
+
+                            {rec.sellPrice && (
+                              <div className="text-right shrink-0">
+                                <div className="text-[10px] text-[#7f8ea1]">
+                                  Raw Sell
+                                </div>
+                                <div className="font-mono-tabular text-xs font-semibold text-[#e5a93c]">
+                                  {rec.sellPrice}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Yielded Materials List */}
+                          <div className="space-y-1.5">
+                            <div className="text-[11px] font-medium text-[#8fa1b6]">
+                              Breaks down into ({outcomeDetails.length})
+                            </div>
+                            {outcomeDetails.map((out, idx) => (
+                              <div
+                                key={`${rec.id}-${idx}`}
+                                className="flex items-center justify-between gap-2.5 rounded-lg bg-[#0a0e14] border border-white/[0.065] px-2.5 py-2"
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  {out.image ? (
+                                    <ItemThumbnail
+                                      src={out.image}
+                                      alt={out.name}
+                                      sizeClass="w-7 h-7"
+                                    />
+                                  ) : (
+                                    <div className="w-7 h-7 rounded-md bg-[#111722] border border-white/[0.07] flex items-center justify-center shrink-0">
+                                      {renderOutcomeIcon(out.kind)}
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-medium text-[#e6edf5] truncate">
+                                      {out.name}
+                                    </div>
+                                    <div className="text-[10.5px] text-[#7f8ea1] truncate">
+                                      {out.kind}
+                                      {out.gridSize ? ` · ${out.gridSize}` : ""}
+                                      {out.weight ? ` · ${out.weight}` : ""}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {out.sellPrice && (
+                                  <span className="font-mono-tabular text-[11px] font-semibold text-[#34d399] shrink-0">
+                                    {out.sellPrice}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Spawn Footer */}
+                        <div className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-center justify-between gap-2 text-xs">
+                          <div className="min-w-0 text-[11px] text-[#9fb0c4] truncate">
+                            {spawnInfo.pois.length > 0
+                              ? `Spawns: ${spawnInfo.pois.join(", ")}`
+                              : rec.station}
+                          </div>
+                          {spawnInfo.count > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => onInspectDisassemblyItem(rec)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0a0e14] hover:bg-[#101824] border border-white/[0.1] hover:border-[#38bdf8] text-[#38bdf8] hover:text-[#7dd3fc] text-xs font-medium whitespace-nowrap transition-colors shrink-0"
+                            >
+                              <MapPin className="w-3.5 h-3.5" />
+                              <span>Locate Spawns ({spawnInfo.count})</span>
+                            </button>
                           )}
                         </div>
                       </div>
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {rec.outcomes.map((out, i) => (
-                        <span
-                          key={i}
-                          className="px-2.5 py-1 rounded-lg bg-[#0a0e14] border border-white/[0.065] text-xs text-[#7dd3fc]"
-                        >
-                          Yields: {out}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ================================================================
             VIEW 4: LIVE API SEARCH (TOOLS, KEYS, CONTAINERS, TASKS)

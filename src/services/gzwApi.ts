@@ -8,6 +8,8 @@ const SPAWN_LOOKUP_CACHE_KEY = "lamang_ops_spawn_lookup_v3";
 const PRIORITY_DATASETS = [
   "hideout_modules",
   "disassembly_recipes",
+  "disassembly_material",
+  "crafting_material",
   "building_material",
   "workshop_supplies",
   "laboratory_supplies",
@@ -239,8 +241,10 @@ function normalizeRecordClient(
   const category = String(
     raw.type || raw.category || raw.room || raw.slot || dataset
   );
-  const image =
+  const rawImg =
     typeof raw.image === "string" && raw.image.trim() ? raw.image.trim() : null;
+  const image =
+    rawImg && !rawImg.toLowerCase().includes("missing_icon") ? rawImg : null;
 
   let sellPrice: string | undefined;
   if (typeof raw.sell_price === "string") {

@@ -34,6 +34,16 @@ interface LegalPrivacyPanelProps {
 
 const REFERENCE_LINKS = [
   {
+    label: "GitHub Privacy Statement",
+    desc: "How GitHub, Inc. handles HTTP transport & Pages hosting metadata",
+    href: "https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement",
+  },
+  {
+    label: "GitHub Pages Data Collection Notice",
+    desc: "Official disclosure on GitHub Pages visitor IP logging & static delivery",
+    href: "https://docs.github.com/en/pages/getting-started-with-github-pages/about-github-pages#data-collection",
+  },
+  {
     label: "ICO UK GDPR Guidance",
     desc: "UK Information Commissioner's Office data protection resources",
     href: "https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/",
@@ -42,16 +52,6 @@ const REFERENCE_LINKS = [
     label: "ICO — Raise a Data Complaint",
     desc: "How to raise a data protection concern with the UK regulator",
     href: "https://ico.org.uk/make-a-complaint/",
-  },
-  {
-    label: "Google Cloud Privacy Notice",
-    desc: "Hosting infrastructure transport & network processing terms",
-    href: "https://cloud.google.com/terms/cloud-privacy-notice",
-  },
-  {
-    label: "Google Cloud Data Processing Addendum",
-    desc: "Processor terms and international data transfer safeguards",
-    href: "https://cloud.google.com/terms/data-processing-addendum",
   },
   {
     label: "GZW Wiki Copyrights (CC BY-SA)",
@@ -103,20 +103,24 @@ export function LegalPrivacyPanel({
           <div className="flex flex-wrap items-center gap-2 text-xs text-[#94a3b8]">
             <span>Privacy, Legal &amp; Data Controls</span>
             <span aria-hidden="true">·</span>
-            <span>Local-First Companion</span>
+            <span>Public GitHub Pages Static App</span>
             <span aria-hidden="true">·</span>
-            <span>Notice last updated: 20 November 2026</span>
+            <span>Per-Visitor Browser Isolation</span>
+            <span aria-hidden="true">·</span>
+            <span>Notice updated: 22 November 2026</span>
           </div>
           <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-[#f8fafc] mt-2">
-            Your progress. Your control.
+            Your progress. Your browser. Your control.
           </h1>
           <p className="text-sm text-[#cbd5e1] leading-relaxed max-w-3xl mt-2">
-            Lamang Operations is a private hobby &amp; tactical companion for{" "}
-            <strong className="text-white font-semibold">Gray Zone Warfare</strong>. This notice
-            explains transparently what browser and network data the app uses, how Screen Sync
-            works locally on your device, and how to export, restore, or erase everything saved.
-            It describes the app for informational clarity and is not formal legal compliance
-            certification.
+            Lamang Operations is an independent hobby &amp; tactical companion for{" "}
+            <strong className="text-white font-semibold">Gray Zone Warfare</strong>, published as a
+            public static web application on GitHub Pages. Although anyone can open the public link,{" "}
+            <strong className="text-white font-semibold">
+              every visitor only ever sees and accesses their own data on their own device
+            </strong>
+            . This notice describes clearly how the app works and is provided for transparency rather
+            than as formal legal compliance certification.
           </p>
         </section>
 
@@ -124,95 +128,116 @@ export function LegalPrivacyPanel({
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_350px] gap-6 items-start">
           {/* Left Column: Structured Privacy & Legal Sections */}
           <div className="space-y-4">
-            {/* 1. What is processed */}
+            {/* 1. Strict Single-User Data Isolation & What is Processed */}
             <article className="bg-[#0e131b] border border-white/[0.08] rounded-xl p-5 sm:p-6 space-y-3">
               <div className="flex items-center gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-[#e5a93c] shrink-0" />
                 <h2 className="font-display text-base sm:text-lg font-semibold text-[#f8fafc]">
-                  What is processed
+                  Single-visitor isolation &amp; what is processed
                 </h2>
               </div>
               <div className="space-y-2.5 text-[13.5px] text-[#cbd5e1] leading-relaxed">
                 <p>
                   <strong className="text-[#f1f5f9] font-semibold">
-                    Progress &amp; Operator Profiles (Saved on Your Device):
+                    One Person = Only Your Own Data (Zero Shared Database):
                   </strong>{" "}
-                  The app does not require registration, login credentials, or a central player
-                  account. It stores only what you enter locally for your three operator slots (
-                  {operatorProfiles.map((p) => p.name).join(", ")}), including operator display
-                  names, chosen faction, Hideout built/planned upgrade status, stash material
-                  counts, completed tasks, owned keys, map material ticks, custom recon pins and
-                  notes, and workspace layout width.
+                  There are no user accounts, login credentials, friend lists, party rooms, or
+                  central server databases. If two different people open this public GitHub Pages
+                  site, each person&apos;s browser maintains completely separate local storage on
+                  their own machine. Other visitors cannot read, search, modify, or overwrite your
+                  progress, and the site maintainer cannot see or access any visitor&apos;s saved
+                  data.
+                </p>
+                <p>
+                  <strong className="text-[#f1f5f9] font-semibold">
+                    Operator Slots &amp; Tactical Progress (Local Only):
+                  </strong>{" "}
+                  The app stores only what you enter locally for your three browser operator slots (
+                  {operatorProfiles.map((p) => p.name).join(", ")}), including slot labels, chosen
+                  faction filter, Hideout built/planned upgrade states, stash counts, completed
+                  tasks, owned keys, map material ticks, custom recon pins and notes, and sidebar
+                  panel width.
                 </p>
                 <p>
                   <strong className="text-[#f1f5f9] font-semibold">
                     Screen Sync &amp; Compass Watcher (Volatile Memory Only):
                   </strong>{" "}
-                  If you choose to enable Monitor-2 Screen Sync, your browser&apos;s built-in
-                  screen capture (<code className="font-mono-tabular text-xs text-[#7dd3fc]">getDisplayMedia</code>)
-                  analyses frames from your selected game window locally in browser memory using
+                  If you choose to start Monitor-2 Screen Sync, your browser&apos;s built-in screen
+                  capture (<code className="font-mono-tabular text-xs text-[#7dd3fc]">getDisplayMedia</code>)
+                  analyses frames from your selected window solely inside local browser RAM using
                   Canvas pixel matching and client-side OCR (<code className="font-mono-tabular text-xs text-[#7dd3fc]">Tesseract.js</code>)
-                  to detect your player arrow, grid coordinates, and top-HUD compass direction.{" "}
+                  to detect your map position and compass bearing.{" "}
                   <strong className="text-white">
-                    No screenshots, video frames, or screen captures are ever uploaded, recorded,
-                    transmitted, or saved to any server.
+                    No screenshots, video streams, or captured frames are ever uploaded, recorded,
+                    stored, or transmitted anywhere.
                   </strong>{" "}
-                  Closing or stopping Screen Sync immediately terminates browser capture access.
+                  Stopping Screen Sync or closing the tab ends capture immediately.
                 </p>
                 <p>
                   <strong className="text-[#f1f5f9] font-semibold">
-                    No Game Hooks &amp; No Sensitive Info:
+                    No Sensitive Info &amp; No Game Connection:
                   </strong>{" "}
-                  The app never connects to your Steam or game account, does not read game memory
-                  or files, and performs no background telemetry. Do not enter personal, private,
-                  or sensitive information into operator names or custom pin notes.
+                  This tool never links to your Steam, GitHub, or game account and reads no game
+                  files or process memory. Do not enter personal, confidential, or sensitive details
+                  into operator slot names or custom pin notes.
                 </p>
               </div>
             </article>
 
-            {/* 2. Where your data goes */}
+            {/* 2. Where your data goes (Public GitHub Pages Architecture) */}
             <article className="bg-[#0e131b] border border-white/[0.08] rounded-xl p-5 sm:p-6 space-y-3">
               <div className="flex items-center gap-2.5">
                 <HardDrive className="w-4 h-4 text-[#38bdf8] shrink-0" />
                 <h2 className="font-display text-base sm:text-lg font-semibold text-[#f8fafc]">
-                  Where your data goes
+                  Where your data goes (GitHub Pages &amp; game CDNs)
                 </h2>
               </div>
               <div className="space-y-2.5 text-[13.5px] text-[#cbd5e1] leading-relaxed">
                 <p>
                   <strong className="text-[#f1f5f9] font-semibold">
-                    Device-Local Progress:
+                    100% Browser-Local Saves:
                   </strong>{" "}
-                  All operator progress, custom pins, and stash counts remain inside this
-                  browser&apos;s local storage unless you explicitly click{" "}
-                  <strong className="text-white">Export my progress</strong> to save a backup file
-                  yourself. Nothing is synced to a shared cloud database or visible to other
-                  players.
+                  All progress, stash counts, and custom pins stay inside this specific browser
+                  profile on your device unless you explicitly click{" "}
+                  <strong className="text-white">Export my progress</strong> to download a JSON file
+                  yourself. Moving to another browser or computer requires transferring your own
+                  exported JSON backup manually.
                 </p>
                 <p>
                   <strong className="text-[#f1f5f9] font-semibold">
-                    Read-Only Game Data &amp; Map Tile Proxy:
+                    Static Hosting via GitHub Pages (GitHub, Inc.):
                   </strong>{" "}
-                  To display Update 0.5 item stats, task walkthroughs, building reference photos,
-                  and satellite map tiles, the app server proxies and briefly caches public
-                  community game data from{" "}
-                  <code className="font-mono-tabular text-xs text-[#94a3b8]">gzw-data.dev</code>,{" "}
-                  <code className="font-mono-tabular text-xs text-[#94a3b8]">cdn.gzwtacmap.com</code>,
-                  and{" "}
-                  <code className="font-mono-tabular text-xs text-[#94a3b8]">gray-zone-warfare.fandom.com</code>.
-                  No operator progress, custom pins, or personal identifiers are sent with those
-                  requests.
+                  Public builds are served as static HTML/JS/CSS files by GitHub Pages. When your
+                  browser requests the page, GitHub&apos;s servers automatically receive standard
+                  HTTP transport metadata (including your IP address, user-agent, requested URL, and
+                  timestamp) for security, DDoS protection, and delivery under the{" "}
+                  <strong className="text-white">GitHub Privacy Statement</strong>. The app
+                  maintainer has no dashboard or access to individual visitor IP logs.
                 </p>
                 <p>
                   <strong className="text-[#f1f5f9] font-semibold">
-                    Hosting Infrastructure &amp; External Links:
+                    Direct Read-Only Game Data &amp; Map Tile Requests:
                   </strong>{" "}
-                  The hosting platform (Google Cloud Run) processes standard HTTP network and
-                  transport metadata (such as IP address, TLS routing, user-agent, and timestamps)
-                  under its own privacy and security policies. No advertising networks, behavioural
-                  analytics trackers, or location-tracking APIs are included. External wiki or legal
-                  guidance links contact those third-party websites only when you choose to open
-                  them.
+                  When running on GitHub Pages, your browser connects directly (read-only) to
+                  public community game services for item/task catalogs (
+                  <code className="font-mono-tabular text-xs text-[#94a3b8]">gzw-data.dev</code>),
+                  Lamang satellite map tiles (
+                  <code className="font-mono-tabular text-xs text-[#94a3b8]">cdn.gzwtacmap.com</code>
+                  ), and optional task walkthroughs/images (
+                  <code className="font-mono-tabular text-xs text-[#94a3b8]">
+                    gray-zone-warfare.fandom.com
+                  </code>{" "}
+                  &amp; <code className="font-mono-tabular text-xs text-[#94a3b8]">static.wikia.nocookie.net</code>).
+                  When running on an optional Express/Node server preview, those read-only public
+                  requests pass through the host server cache instead. In every mode, zero saved
+                  progress, custom pins, or personal identifiers are ever included in those requests.
+                </p>
+                <p>
+                  <strong className="text-[#f1f5f9] font-semibold">
+                    Zero Trackers &amp; External Links:
+                  </strong>{" "}
+                  No advertising SDKs, analytics scripts, telemetry beacons, or geolocation APIs are
+                  used. External reference links contact those websites only when you click them.
                 </p>
               </div>
             </article>
@@ -222,36 +247,39 @@ export function LegalPrivacyPanel({
               <div className="flex items-center gap-2.5">
                 <FileCheck2 className="w-4 h-4 text-[#34d399] shrink-0" />
                 <h2 className="font-display text-base sm:text-lg font-semibold text-[#f8fafc]">
-                  Storage, cookies and retention
+                  Browser storage, cookies &amp; retention
                 </h2>
               </div>
               <div className="space-y-2.5 text-[13.5px] text-[#cbd5e1] leading-relaxed">
                 <p>
-                  Operator slots, progress snapshots, UI panel widths, and cached public item/wiki
-                  snapshots are stored locally in this browser&apos;s{" "}
+                  Operator slots, progress snapshots, panel width preferences, and cached public
+                  API/wiki snapshots are stored in this browser&apos;s{" "}
                   <code className="font-mono-tabular text-xs text-[#7dd3fc]">localStorage</code>{" "}
                   (<code className="font-mono-tabular text-xs text-[#94a3b8]">lamang_ops_*</code>{" "}
-                  keys) strictly as functional features you request. No advertising, cross-site
-                  tracking, or profiling cookies are used (in alignment with UK PECR rules for
-                  strictly necessary / user-requested local storage).
+                  keys) strictly as user-requested core app functionality. The app sets no
+                  advertising, analytics, or cross-site tracking cookies (consistent with UK PECR
+                  and EU ePrivacy rules for strictly necessary local storage).
                 </p>
                 <p>
-                  A shared browser profile or shared computer is not encrypted private storage:
-                  anyone with access to this browser profile can view or edit saved progress. Local
-                  data is retained until you overwrite it, clear browser site data, or click{" "}
-                  <strong className="text-white">Erase my app data</strong>. Hosting provider
-                  operational logs and backups follow the hosting provider&apos;s standard retention
-                  schedules; immediate deletion from provider system backups is not promised.
+                  <strong className="text-[#f1f5f9] font-semibold">
+                    Shared Devices Warning &amp; Retention:
+                  </strong>{" "}
+                  A shared computer or shared browser profile is not encrypted private storage:
+                  anyone using the same OS account and browser profile can view or clear your saved
+                  progress. Local browser data stays until you overwrite it, clear site storage in
+                  browser settings, or click <strong className="text-white">Erase my app data</strong>.
+                  GitHub Pages and third-party CDN operational logs follow those providers&apos; own
+                  retention schedules.
                 </p>
               </div>
             </article>
 
-            {/* 4. Purpose, lawful basis and UK data protection */}
+            {/* 4. Purpose, lawful basis, UK/EU GDPR & International Transfers */}
             <article className="bg-[#0e131b] border border-white/[0.08] rounded-xl p-5 sm:p-6 space-y-3">
               <div className="flex items-center gap-2.5">
                 <Scale className="w-4 h-4 text-[#e5a93c] shrink-0" />
                 <h2 className="font-display text-base sm:text-lg font-semibold text-[#f8fafc]">
-                  Purpose, lawful basis &amp; UK data protection
+                  Lawful basis, UK/EU GDPR &amp; international transfers
                 </h2>
               </div>
               <div className="space-y-2.5 text-[13.5px] text-[#cbd5e1] leading-relaxed">
@@ -259,33 +287,42 @@ export function LegalPrivacyPanel({
                   <strong className="text-[#f1f5f9] font-semibold">
                     Purpose &amp; Lawful Basis:
                   </strong>{" "}
-                  We process minimal hosting transport metadata and provide local-storage tools for
-                  our legitimate interests in running a fast, secure private gaming companion. There
-                  is no advertising, profiling, or sale of personal data. Where UK GDPR applies, you
-                  have the right to access, correct, erase, or object to processing of your data,
-                  and the right to complain to the{" "}
-                  <strong className="text-white">UK Information Commissioner&apos;s Office (ICO)</strong>.
+                  This public static site operates as a free, non-commercial community utility. To
+                  the extent any network transport data is processed during page delivery, it is
+                  processed solely for our legitimate interests in reliably serving the static app
+                  and maintaining security, with zero profiling, marketing, or sale of data.
                 </p>
                 <p>
                   <strong className="text-[#f1f5f9] font-semibold">
-                    Household Use vs. Wider Public Release:
+                    International Data Transfers:
                   </strong>{" "}
-                  Purely personal or household use by an individual or small circle of invited
-                  friends may fall outside UK GDPR. Wider public release changes that assessment: if
-                  distributed publicly, the operator should publish a dedicated controller contact
-                  email, document the lawful basis and responsibilities under UK GDPR and the Data
-                  Protection Act 2018 (as amended), and review hosting processor terms and
-                  international transfer safeguards before rollout.
+                  GitHub Pages is operated by GitHub, Inc. (United States) with global edge CDN
+                  delivery, so basic HTTP connection metadata (such as your IP address) may be
+                  routed outside the UK/EEA under GitHub&apos;s published data protection and
+                  international transfer safeguards (linked on the right). Your saved game progress
+                  itself never leaves your own device.
+                </p>
+                <p>
+                  <strong className="text-[#f1f5f9] font-semibold">
+                    Your Rights &amp; Regulator Contact:
+                  </strong>{" "}
+                  Where UK GDPR or EU GDPR applies, you have rights of access, rectification,
+                  erasure, restriction, portability, and objection. Because all app saves live
+                  exclusively in your browser, you can exercise access, portability, and immediate
+                  erasure directly using the controls on this page. You also have the right to
+                  lodge a complaint with the{" "}
+                  <strong className="text-white">UK Information Commissioner&apos;s Office (ICO)</strong>{" "}
+                  or your local data protection authority.
                 </p>
               </div>
             </article>
 
-            {/* 5. Unofficial Fan Companion, Fair Play & Disclaimers */}
+            {/* 5. Unofficial Fan Companion, Fair Play, Copyright & Liability */}
             <article className="bg-[#0e131b] border border-white/[0.08] rounded-xl p-5 sm:p-6 space-y-3">
               <div className="flex items-center gap-2.5">
                 <AlertTriangle className="w-4 h-4 text-[#e5a93c] shrink-0" />
                 <h2 className="font-display text-base sm:text-lg font-semibold text-[#f8fafc]">
-                  Unofficial fan notice, fair play &amp; disclaimers
+                  Unofficial fan notice, fair play, copyright &amp; disclaimers
                 </h2>
               </div>
               <div className="space-y-2.5 text-[13.5px] text-[#cbd5e1] leading-relaxed">
@@ -293,35 +330,38 @@ export function LegalPrivacyPanel({
                   <strong className="text-[#f1f5f9] font-semibold">
                     Non-Affiliation &amp; Intellectual Property:
                   </strong>{" "}
-                  Lamang Operations is an independent, unofficial fan-made companion app and is{" "}
+                  Lamang Operations is an independent, unofficial fan-made project and is{" "}
                   <strong className="text-white">
                     not affiliated with, endorsed by, sponsored by, or connected to MADFINGER Games,
                     a.s.
                   </strong>{" "}
-                  or <em>Gray Zone Warfare</em>. All game trademarks, faction names, map imagery,
-                  and in-game terminology belong to their respective owners. Community dataset and
-                  walkthrough content is attributed to <code className="text-xs text-[#94a3b8]">gzw-data.dev</code>{" "}
-                  and the Gray Zone Warfare Fandom Wiki (CC BY-SA).
+                  or <em>Gray Zone Warfare</em>. All trademarks, faction names, map imagery, and
+                  game assets belong to their respective owners. Structured community game data is
+                  sourced from <code className="text-xs text-[#94a3b8]">gzw-data.dev</code>, tactical
+                  map tiles from <code className="text-xs text-[#94a3b8]">gzwtacmap.com</code>, and
+                  walkthrough text/media from the Gray Zone Warfare Fandom Wiki (CC BY-SA). Rights
+                  holders requesting content removal or attribution updates may open an issue or
+                  contact the maintainer via the public repository.
                 </p>
                 <p>
                   <strong className="text-[#f1f5f9] font-semibold">
                     Fair Play &amp; External-Only Operation:
                   </strong>{" "}
-                  This tool runs solely inside a standard web browser as a tactical map, hideout
-                  tracker, and optional second-monitor visual reference. It never inspects or
-                  modifies game memory, binaries, config files, or network traffic. You remain
-                  solely responsible for complying with MADFINGER Games&apos; Terms of Service and
-                  EULA when using external companion tools.
+                  This companion runs solely inside a standard browser as an interactive map,
+                  progress checklist, and optional second-monitor visual helper. It never reads or
+                  modifies game memory, binaries, files, or network packets. You remain solely
+                  responsible for complying with MADFINGER Games&apos; Terms of Service and EULA.
                 </p>
                 <p>
                   <strong className="text-[#f1f5f9] font-semibold">
-                    No Warranty (&ldquo;As-Is&rdquo;) &amp; Minimum Age:
+                    &ldquo;As-Is&rdquo; Disclaimer, Liability &amp; Minimum Age:
                   </strong>{" "}
-                  Map markers, loot tiers, key doors, prices, and task walkthroughs are provided
-                  &ldquo;as is&rdquo; without warranty of accuracy or uninterrupted availability, as
-                  game patches may change spawns or objectives. To the fullest extent permitted by
-                  law, the app maintainer is not liable for gameplay or indirect losses from using
-                  this companion. Not directed at children under 13 (or 16 where applicable).
+                  Coordinates, disassembly yields, loot tiers, vendor prices, and task guides are
+                  provided &ldquo;as is&rdquo; without warranty of accuracy, completeness, or
+                  uptime, as game updates may change spawns or recipes at any time. To the maximum
+                  extent permitted by law, the maintainer accepts no liability for gameplay, data,
+                  or indirect losses arising from use of this tool. This site is not directed at
+                  children under 13 (or 16 in jurisdictions requiring parental consent).
                 </p>
               </div>
             </article>
@@ -336,7 +376,8 @@ export function LegalPrivacyPanel({
                   Access, export and erasure
                 </h2>
                 <p className="text-xs text-[#94a3b8] mt-1 leading-relaxed">
-                  Manage everything saved in this browser across all 3 operator slots (active:{" "}
+                  Applies only to this browser on your device across your 3 local operator slots
+                  (active:{" "}
                   <span className="text-[#e2e8f0] font-medium">
                     {operatorProfiles.find((p) => p.id === activeOperatorId)?.name || "Operator 1"}
                   </span>
@@ -463,26 +504,26 @@ export function LegalPrivacyPanel({
               )}
             </section>
 
-            {/* Controller & Operator Contact */}
+            {/* Maintainer & Public Contact */}
             <section className="bg-[#0e131b] border border-white/[0.08] rounded-xl p-5 space-y-2">
               <h2 className="font-display text-sm font-semibold text-[#f8fafc]">
-                Controller &amp; contact details
+                Maintainer &amp; privacy contact
               </h2>
               <p className="text-xs text-[#cbd5e1] leading-relaxed">
-                Operated as a private fan companion by the site maintainer. Deleting progress here
-                only clears this browser&apos;s local data and does not alter any separate browser
-                or external cloud account.
+                Hosted as a public static GitHub Pages project. Each user&apos;s saved data lives
+                only in their own browser; the maintainer holds no user accounts, cloud saves, or
+                visitor IP logs.
               </p>
               <p className="text-xs text-[#94a3b8] leading-relaxed">
-                Before any wider public release, publish a dedicated support contact email here for
-                access, correction, erasure, or objection requests.
+                For copyright/attribution requests, bug reports, or privacy questions, contact the
+                site maintainer via the public GitHub repository&apos;s Issues / Contact page.
               </p>
             </section>
 
-            {/* ICO & Provider Policy Links */}
+            {/* GitHub Pages, ICO & Provider Policy Links */}
             <section className="bg-[#0e131b] border border-white/[0.08] rounded-xl p-5 space-y-2.5">
               <h2 className="font-display text-sm font-semibold text-[#f8fafc]">
-                Guidance &amp; provider links
+                Hosting &amp; regulatory links
               </h2>
               <div className="divide-y divide-white/[0.06]">
                 {REFERENCE_LINKS.map((link) => (

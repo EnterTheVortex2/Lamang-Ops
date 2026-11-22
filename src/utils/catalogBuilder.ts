@@ -12,6 +12,8 @@ import {
   CANONICAL_HIDEOUT_UPGRADES,
   FALLBACK_DISASSEMBLY_RECIPES,
   MATERIAL_INTEL_HINTS,
+  type DisassemblyCategory,
+  type DisassemblyOutcomeDetail,
   type DisassemblyRecipeDef,
   type HideoutUpgradeDef,
   type RoomId,
@@ -279,28 +281,186 @@ export function buildMaterialsCatalog(
   );
 }
 
+function classifyDisassemblyCategory(
+  name: string,
+  outcomes: string[]
+): DisassemblyCategory {
+  const txt = `${name} ${outcomes.join(" ")}`.toLowerCase();
+  if (
+    txt.includes("container") ||
+    txt.includes("fuel cell") ||
+    txt.includes("canister")
+  ) {
+    return "Containers & Chem";
+  }
+  if (
+    txt.includes("ballistic") ||
+    txt.includes("avionics") ||
+    txt.includes("onboard") ||
+    txt.includes("drone") ||
+    txt.includes("missile")
+  ) {
+    return "Avionics & Weapons";
+  }
+  return "Electronics & Comms";
+}
+
+function classifyOutcomeKind(
+  name: string,
+  isCraftingMaterial: boolean
+): DisassemblyOutcomeDetail["kind"] {
+  if (isCraftingMaterial) return "Crafting Material";
+  const lower = name.toLowerCase();
+  if (lower.includes("canister")) return "Canister / Biohazard";
+  if (
+    lower.includes("drive") ||
+    lower.includes("logs") ||
+    lower.includes("manifest")
+  ) {
+    return "Intel / Data Drive";
+  }
+  return "Module";
+}
+
 export function buildDisassemblyRecipes(
   apiCache: ApiCachePayload | null
 ): DisassemblyRecipeDef[] {
-  const apiRows = apiCache?.datasets?.disassembly_recipes || [];
-  if (apiRows.length === 0) return FALLBACK_DISASSEMBLY_RECIPES;
+  const byNorm = new Map<string, DisassemblyRecipeDef>();
+  for (const fallback of FALLBACK_DISASSEMBLY_RECIPES) {
+    byNorm.set(fallback.name.trim().toLowerCase(), fallback);
+  }
 
-  return apiRows.map((rec) => {
+  const disMatMap = new Map<string, NormalizedApiRecord>();
+  for (const rec of apiCache?.datasets?.disassembly_material || []) {
+    disMatMap.set(rec.name.trim().toLowerCase(), rec);
+  }
+
+  const craftMatMap = new Map<string, NormalizedApiRecord>();
+  for (const rec of apiCache?.datasets?.crafting_material || []) {
+    craftMatMap.set(rec.name.trim().toLowerCase(), rec);
+  }
+
+  const uncatMap = new Map<string, NormalizedApiRecord>();
+  for (const rec of apiCache?.datasets?.uncategorized || []) {
+    uncatMap.set(rec.name.trim().toLowerCase(), rec);
+  }
+
+  const apiRows = apiCache?.datasets?.disassembly_recipes || [];
+  for (const rec of apiRows) {
+    const norm = rec.name.trim().toLowerCase();
+    const existing = byNorm.get(norm);
     const raw = rec.raw || {};
     const outcomes = Array.isArray(raw.outcome)
       ? raw.outcome.map((o) => String(o))
       : typeof raw.outcome_text === "string"
-        ? raw.outcome_text.split(",").map((s) => s.trim()).filter(Boolean)
-        : [];
-    return {
-      id: rec.id,
+        ? raw.outcome_text
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : existing?.outcomes || [];
+
+    const outcomeDetails: DisassemblyOutcomeDetail[] = outcomes.map((outName) => {
+      const oNorm = outName.trim().toLowerCase();
+      const craft = craftMatMap.get(oNorm);
+      const uncat = uncatMap.get(oNorm);
+      const prev = existing?.outcomeDetails.find(
+        (d) => d.name.trim().toLowerCase() === oNorm
+      );
+      return {
+        name: outName,
+        kind: classifyOutcomeKind(outName, !!craft || prev?.kind === "Crafting Material"),
+        sellPrice: craft?.sellPrice || uncat?.sellPrice || prev?.sellPrice,
+        gridSize: craft?.gridSize || uncat?.gridSize || prev?.gridSize,
+        weight: craft?.weight || uncat?.weight || prev?.weight,
+        image: craft?.image || prev?.image || null,
+      };
+    });
+
+    const matMeta = disMatMap.get(norm);
+    const category =
+      existing?.category || classifyDisassemblyCategory(rec.name, outcomes);
+
+    byNorm.set(norm, {
+      id: existing?.id || rec.id,
       name: rec.name,
-      duration: typeof raw.duration === "string" ? raw.duration : "4–8 hours",
+      duration:
+        typeof raw.duration === "string"
+          ? raw.duration
+          : existing?.duration || "4–8 hours",
       outcomes,
+      outcomeDetails,
       sellPrice:
-        typeof raw.sell_price === "string" ? raw.sell_price : rec.sellPrice,
-    };
-  });
+        (typeof raw.sell_price === "string" && raw.sell_price) ||
+        rec.sellPrice ||
+        matMeta?.sellPrice ||
+        existing?.sellPrice,
+      gridSize: matMeta?.gridSize || existing?.gridSize,
+      weight: matMeta?.weight || existing?.weight,
+      manufacturer: matMeta?.manufacturer || existing?.manufacturer,
+      category,
+      image: matMeta?.image || existing?.image || null,
+      station:
+        category === "Containers & Chem"
+          ? "Electronics Workshop / Lab"
+          : "Electronics Workshop",
+    });
+  }
+
+  return Array.from(byNorm.values());
+}
+
+export function getDisassemblySpawnSummary(itemName: string): {
+  count: number;
+  pois: string[];
+} {
+  const norm = itemName.trim().toLowerCase();
+  const pois: string[] = [];
+  let count = 0;
+  for (const sp of DISASSEMBLY_SPAWNS_05) {
+    if (sp.name.trim().toLowerCase() === norm) {
+      count += 1;
+      if (!pois.includes(sp.poi)) pois.push(sp.poi);
+    }
+  }
+  return { count, pois };
+}
+
+export function buildDisassemblyCatalogMaterial(
+  rec: DisassemblyRecipeDef
+): CatalogMaterial {
+  const spawnSummary = getDisassemblySpawnSummary(rec.name);
+  const outcomesLabel = rec.outcomes.join(" + ");
+  const spawnNotes: string[] = [];
+  if (spawnSummary.pois.length > 0) {
+    spawnNotes.push(
+      `${spawnSummary.count} confirmed spawn${spawnSummary.count === 1 ? "" : "s"} in ${spawnSummary.pois.join(", ")}`
+    );
+  }
+  spawnNotes.push(`Disassembly time: ${rec.duration} (${rec.station})`);
+  spawnNotes.push(`Yields: ${outcomesLabel}`);
+
+  return {
+    key: `disassembly_${rec.id}`,
+    id: rec.id,
+    name: rec.name,
+    room: rec.category === "Containers & Chem" ? "laboratory" : "electronics",
+    dataset: "Disassembly Item",
+    required: 1,
+    tiersUsed: [],
+    layerHint: "disassemblySpawns",
+    image: rec.image || null,
+    description: `${rec.category} · ${rec.duration} disassembly${
+      rec.gridSize ? ` · ${rec.gridSize}` : ""
+    }${rec.weight ? ` · ${rec.weight}` : ""}${
+      rec.sellPrice ? ` · Raw value ${rec.sellPrice}` : ""
+    }. Breaks down into ${outcomesLabel}.`,
+    weight: rec.weight,
+    gridSize: rec.gridSize,
+    sellPrice: rec.sellPrice,
+    spawnNotes,
+    usedInUpgrades: [],
+    apiCoords: [],
+  };
 }
 
 const ELECTRONIC_AREA_MATERIALS = new Set([
