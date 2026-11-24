@@ -1,15 +1,21 @@
 import { GzwDataClient } from "@zoniboy/gzw-data-client";
+import {
+  isValidTacticalImage,
+  resolveTacticalImageUrl,
+} from "../utils/imageUtils";
 
 export const API_ROOT = "https://gzw-data.dev/api/v1";
 
-const CACHE_KEY = "lamang_ops_gzw_api_cache_v9";
-const SPAWN_LOOKUP_CACHE_KEY = "lamang_ops_spawn_lookup_v3";
+const CACHE_KEY = "lamang_ops_gzw_api_cache_v10";
+const SPAWN_LOOKUP_CACHE_KEY = "lamang_ops_spawn_lookup_v4";
 
 const PRIORITY_DATASETS = [
   "hideout_modules",
   "disassembly_recipes",
   "disassembly_material",
   "crafting_material",
+  "production_material",
+  "military_material",
   "building_material",
   "workshop_supplies",
   "laboratory_supplies",
@@ -33,16 +39,16 @@ const PRIORITY_DATASETS = [
 ];
 
 const MAX_PAGES_BY_DATASET: Record<string, number> = {
-  vendor_stock: 13,
-  tasks: 7,
-  side_task: 3,
-  keys: 3,
-  task_items: 3,
-  task_guides: 2,
-  intels: 6,
-  contract: 2,
-  contracts: 2,
-  loot_container: 2,
+  vendor_stock: 25,
+  tasks: 12,
+  side_task: 6,
+  keys: 5,
+  task_items: 5,
+  task_guides: 5,
+  intels: 10,
+  contract: 4,
+  contracts: 4,
+  loot_container: 4,
 };
 
 // Direct SDK fallback client (used when backend /api/gzw/* proxy is unavailable, e.g. GitHub Pages)
@@ -243,8 +249,7 @@ function normalizeRecordClient(
   );
   const rawImg =
     typeof raw.image === "string" && raw.image.trim() ? raw.image.trim() : null;
-  const image =
-    rawImg && !rawImg.toLowerCase().includes("missing_icon") ? rawImg : null;
+  const image = resolveTacticalImageUrl(rawImg, name);
 
   let sellPrice: string | undefined;
   if (typeof raw.sell_price === "string") {
@@ -287,12 +292,33 @@ async function fetchDirectFromGzw(): Promise<ApiCachePayload> {
   const datasets: Record<string, NormalizedApiRecord[]> = {};
   const discoveredDatasets: string[] = [];
 
+  const imageMap = new Map<string, string>();
+  try {
+    const imgRes = await fetch(`${API_ROOT}/images`, {
+      signal: AbortSignal.timeout(9000),
+    });
+    if (imgRes.ok) {
+      const imgJson = (await imgRes.json()) as {
+        images?: Record<string, string>;
+      };
+      if (imgJson?.images && typeof imgJson.images === "object") {
+        for (const [k, url] of Object.entries(imgJson.images)) {
+          if (isValidTacticalImage(url)) {
+            imageMap.set(k.trim().toLowerCase(), url.trim());
+          }
+        }
+      }
+    }
+  } catch {
+    // optional /images enrichment
+  }
+
   const batchSize = 4;
   for (let i = 0; i < PRIORITY_DATASETS.length; i += batchSize) {
     const slice = PRIORITY_DATASETS.slice(i, i + batchSize);
     const settled = await Promise.allSettled(
       slice.map(async (dataset) => {
-        const maxPages = MAX_PAGES_BY_DATASET[dataset] ?? 2;
+        const maxPages = MAX_PAGES_BY_DATASET[dataset] ?? 5;
         const rows: NormalizedApiRecord[] = [];
         let page = 1;
 
@@ -321,7 +347,18 @@ async function fetchDirectFromGzw(): Promise<ApiCachePayload> {
           page += 1;
         }
 
-        const cleanRows = rows.filter((r) => !r.name.startsWith("<DEV>"));
+        const cleanRows = rows
+          .filter((r) => !r.name.startsWith("<DEV>"))
+          .map((r) => {
+            if (r.image) return r;
+            const byName =
+              imageMap.get(r.name.trim().toLowerCase()) ||
+              imageMap.get(r.id.trim().toLowerCase()) ||
+              null;
+            return byName
+              ? { ...r, image: resolveTacticalImageUrl(byName, r.name) }
+              : r;
+          });
         return { dataset, rows: cleanRows };
       })
     );
@@ -561,7 +598,7 @@ export async function fetchCategoryDataset(
 
     const rows: NormalizedApiRecord[] = [];
     let page = 1;
-    const maxPages = 5;
+    const maxPages = 12;
     while (page <= maxPages) {
       try {
         const upstreamRes = await fetch(

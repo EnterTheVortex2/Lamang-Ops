@@ -1,4 +1,6 @@
+import { WEAPON_PARTS_BY_ID, WEAPONS_CATALOG } from "../data/weaponLoadoutData";
 import type { ApiCachePayload, NormalizedApiRecord } from "../services/gzwApi";
+import { resolveTacticalImageUrl } from "./imageUtils";
 
 export type VendorShopGroup =
   | "ALL"
@@ -156,6 +158,80 @@ export function buildVendorShopCatalog(
   );
 }
 
+let cachedStaticEnrichment: Map<string, VendorItemEnrichment> | null = null;
+
+/**
+ * Instant baseline enrichment for weapons & all 843 attachments from bundled 0.5 Gunsmith catalog,
+ * guaranteeing immediate crisp thumbnails and specs before lazy category API calls finish.
+ */
+export function getStaticWeaponAndPartEnrichmentMap(): Map<string, VendorItemEnrichment> {
+  if (cachedStaticEnrichment) return cachedStaticEnrichment;
+  const map = new Map<string, VendorItemEnrichment>();
+
+  for (const w of WEAPONS_CATALOG) {
+    const specs: { label: string; value: string }[] = [
+      { label: "Class", value: w.weaponClass },
+      { label: "Caliber", value: w.caliber },
+    ];
+    if (w.fireRate) specs.push({ label: "Fire Rate", value: `${w.fireRate} RPM` });
+    if (w.fireMode) specs.push({ label: "Fire Mode", value: w.fireMode });
+    if (w.ergonomics) specs.push({ label: "Ergonomics", value: String(w.ergonomics) });
+    if (w.accuracyMoa !== null && w.accuracyMoa !== undefined && w.accuracyMoa > 0) {
+      specs.push({ label: "Accuracy", value: `${w.accuracyMoa} MOA` });
+    }
+
+    map.set(w.name.trim().toLowerCase(), {
+      image: resolveTacticalImageUrl(w.image, w.name),
+      buyPrice: w.buyPrice ? `$${w.buyPrice.toLocaleString()}` : null,
+      sellPrice: null,
+      weight: w.weightKg ? `${w.weightKg}kg` : null,
+      gridSize: null,
+      manufacturer: w.manufacturer || null,
+      description: w.acceptedAmmo
+        ? `${w.weaponClass} chambered in ${w.caliber}. Accepted ammo: ${w.acceptedAmmo}.`
+        : `${w.weaponClass} chambered in ${w.caliber}.`,
+      specs,
+    });
+  }
+
+  for (const p of Object.values(WEAPON_PARTS_BY_ID)) {
+    const specs: { label: string; value: string }[] = [];
+    if (p.caliber) specs.push({ label: "Caliber", value: p.caliber });
+    if (p.magnification) specs.push({ label: "Magnification", value: p.magnification });
+    if (p.sightingRange) specs.push({ label: "Sighting Range", value: p.sightingRange });
+    if (p.modes) specs.push({ label: "Modes", value: p.modes });
+    if (p.ergonomics) specs.push({ label: "Ergonomics", value: `${p.ergonomics > 0 ? "+" : ""}${p.ergonomics}` });
+    if (p.recoilControl) specs.push({ label: "Recoil Ctrl", value: `${p.recoilControl > 0 ? "+" : ""}${p.recoilControl}%` });
+    if (p.weaponHandling) specs.push({ label: "Handling", value: `${p.weaponHandling > 0 ? "+" : ""}${p.weaponHandling}%` });
+    if (p.loudnessReduction) specs.push({ label: "Loudness", value: `${p.loudnessReduction} dB` });
+    if (p.capacity) specs.push({ label: "Capacity", value: `${p.capacity}` });
+
+    const summaryParts = [
+      p.typeLabel || p.slotType.replace(/_/g, " "),
+      p.caliber ? `Caliber: ${p.caliber}` : null,
+      p.modes ? `Modes: ${p.modes}` : null,
+      p.magnification ? `Zoom: ${p.magnification}` : null,
+    ].filter(Boolean);
+
+    const key = p.name.trim().toLowerCase();
+    if (!map.has(key)) {
+      map.set(key, {
+        image: resolveTacticalImageUrl(p.image, p.name),
+        buyPrice: p.buyPrice ? `$${p.buyPrice.toLocaleString()}` : null,
+        sellPrice: null,
+        weight: p.weightKg ? `${p.weightKg}kg` : null,
+        gridSize: null,
+        manufacturer: p.manufacturer || null,
+        description: summaryParts.join(" · "),
+        specs: specs.slice(0, 8),
+      });
+    }
+  }
+
+  cachedStaticEnrichment = map;
+  return map;
+}
+
 export function extractEnrichmentFromRecords(
   records: NormalizedApiRecord[]
 ): Map<string, VendorItemEnrichment> {
@@ -200,7 +276,7 @@ export function extractEnrichmentFromRecords(
           : null;
 
     const enrichment: VendorItemEnrichment = {
-      image: rec.image,
+      image: resolveTacticalImageUrl(rec.image, rec.name),
       buyPrice,
       sellPrice: rec.sellPrice || null,
       weight: rec.weight || null,

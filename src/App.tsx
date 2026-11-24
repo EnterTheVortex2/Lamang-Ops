@@ -3,12 +3,14 @@ import {
   Check,
   CheckSquare,
   ChevronDown,
+  Crosshair,
   Eye,
   GripVertical,
   Hammer,
   KeyRound,
   Map as MapIcon,
   Maximize2,
+  Menu,
   Minimize2,
   Pencil,
   RefreshCw,
@@ -16,6 +18,7 @@ import {
   ShieldCheck,
   ShoppingBag,
   Users,
+  X,
 } from "lucide-react";
 import {
   doesTaskBelongToFaction,
@@ -36,6 +39,7 @@ import { LegalPrivacyPanel } from "./components/LegalPrivacyPanel";
 import { TasksTrackerPanel } from "./components/TasksTrackerPanel";
 import { TacticalMapPanel } from "./components/TacticalMapPanel";
 import { VendorShopPanel } from "./components/VendorShopPanel";
+import { WeaponLoadoutPanel } from "./components/WeaponLoadoutPanel";
 import {
   discoverAndFetchAllDatasets,
   loadCachedApiData,
@@ -75,6 +79,7 @@ import {
   type GzwTaskDef,
 } from "./utils/taskBuilder";
 import { buildVendorShopCatalog } from "./utils/vendorBuilder";
+import type { SavedWeaponLoadout } from "./utils/weaponBuilder";
 
 const PANEL_WIDTH_KEY = "lamang_ops_panel_width_v1";
 
@@ -82,8 +87,8 @@ const DEFAULT_COMPACT_WIDTH = 468;
 const MIN_PANEL_WIDTH = 360;
 
 type ApiStatusMode = "loading" | "live" | "cached" | "error";
-type WorkspaceMode = "hideout" | "tasks" | "vendors" | "keys" | "legal";
-type MobileTab = "hideout" | "tasks" | "vendors" | "keys" | "map" | "legal";
+type WorkspaceMode = "hideout" | "tasks" | "weapons" | "vendors" | "keys" | "legal";
+type MobileTab = "hideout" | "tasks" | "weapons" | "vendors" | "map" | "keys" | "legal";
 
 function clampPanelWidth(rawWidth: number): number {
   const vw = typeof window !== "undefined" ? window.innerWidth : 1440;
@@ -94,6 +99,7 @@ function clampPanelWidth(rawWidth: number): number {
 export default function App() {
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("hideout");
   const [mobileTab, setMobileTab] = useState<MobileTab>("hideout");
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [glanceMode, setGlanceMode] = useState(false);
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth >= 1024 : true
@@ -228,6 +234,7 @@ export default function App() {
   const ownedKeys = opState.ownedKeys;
   const tickedMapMaterials = opState.tickedMapMaterials;
   const customPins = opState.customPins;
+  const savedLoadouts = opState.savedLoadouts || [];
   const selectedFaction = opState.faction;
 
   const activeOperatorProfile = useMemo(
@@ -564,6 +571,31 @@ export default function App() {
     [updateOpState, showToast]
   );
 
+  const handleSaveWeaponLoadout = useCallback(
+    (loadout: SavedWeaponLoadout) => {
+      updateOpState((prev) => ({
+        ...prev,
+        savedLoadouts: [
+          loadout,
+          ...(prev.savedLoadouts || []).filter((l) => l.id !== loadout.id),
+        ],
+      }));
+      showToast(`Saved build "${loadout.name}" to ${activeOperatorProfile.name}`);
+    },
+    [updateOpState, activeOperatorProfile.name, showToast]
+  );
+
+  const handleDeleteWeaponLoadout = useCallback(
+    (loadoutId: string) => {
+      updateOpState((prev) => ({
+        ...prev,
+        savedLoadouts: (prev.savedLoadouts || []).filter((l) => l.id !== loadoutId),
+      }));
+      showToast("Removed saved weapon loadout");
+    },
+    [updateOpState, showToast]
+  );
+
   const handleResetProgress = () => {
     const opName = activeOperatorProfile.name;
     if (workspaceMode === "tasks") {
@@ -572,6 +604,9 @@ export default function App() {
     } else if (workspaceMode === "keys") {
       updateOpState((prev) => ({ ...prev, ownedKeys: {} }));
       showToast(`Cleared keyholder list for ${opName}`);
+    } else if (workspaceMode === "weapons") {
+      updateOpState((prev) => ({ ...prev, savedLoadouts: [] }));
+      showToast(`Cleared saved weapon loadouts for ${opName}`);
     } else if (workspaceMode === "vendors") {
       showToast("Vendor shop is synced live from gzw-data.dev");
     } else if (workspaceMode === "legal") {
@@ -779,7 +814,11 @@ export default function App() {
       setGlanceMode((prev) => {
         const next = force !== undefined ? force : !prev;
         if (next) {
-          if (workspaceMode === "vendors" || workspaceMode === "legal") {
+          if (
+            workspaceMode === "vendors" ||
+            workspaceMode === "weapons" ||
+            workspaceMode === "legal"
+          ) {
             setWorkspaceMode("hideout");
           }
           if (window.innerWidth < 1024) {
@@ -793,14 +832,21 @@ export default function App() {
     [workspaceMode, showToast]
   );
 
+  const isFullWidthDesktopWorkspace =
+    workspaceMode === "vendors" ||
+    workspaceMode === "weapons" ||
+    workspaceMode === "legal";
+
   const activeModeProgress =
     workspaceMode === "tasks"
       ? { done: completedTasksCount, total: factionTasks.length }
       : workspaceMode === "keys"
         ? { done: ownedKeysCount, total: keysCatalog.length }
-        : workspaceMode === "vendors"
-          ? { done: vendorShopItems.length, total: vendorShopItems.length }
-          : { done: builtCount, total: allUpgrades.length };
+        : workspaceMode === "weapons"
+          ? { done: savedLoadouts.length, total: Math.max(savedLoadouts.length, 1) }
+          : workspaceMode === "vendors"
+            ? { done: vendorShopItems.length, total: vendorShopItems.length }
+            : { done: builtCount, total: allUpgrades.length };
   const progressPct =
     activeModeProgress.total > 0
       ? Math.round((activeModeProgress.done / activeModeProgress.total) * 100)
@@ -809,9 +855,9 @@ export default function App() {
   const isSidebarVisibleOnMobile = mobileTab !== "map";
 
   return (
-    <div className="h-[100dvh] w-screen flex flex-col bg-[#080b10] text-[#e8eef5] overflow-hidden">
-      {/* Sleek Single-Line Top Bar */}
-      <header className="h-12 shrink-0 px-3 sm:px-4 border-b border-white/[0.075] bg-[#0e131b]/95 backdrop-blur-md flex items-center justify-between gap-2 sm:gap-3 z-40">
+    <div className="h-[100dvh] w-full max-w-full flex flex-col bg-[#080b10] text-[#e8eef5] overflow-hidden">
+      {/* Compact Single-Line Top Bar (52px on mobile, 48px on lg+) */}
+      <header className="h-[52px] lg:h-12 shrink-0 px-3 sm:px-4 border-b border-white/[0.075] bg-[#0e131b]/95 backdrop-blur-md flex items-center justify-between gap-2 sm:gap-3 z-40">
         {/* Brand Wordmark + Operator Profile Switcher + Compact Faction Selector */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 whitespace-nowrap shrink-0 min-w-0">
           <div className="flex items-center gap-2">
@@ -827,7 +873,7 @@ export default function App() {
               aria-label="Switch operator profile"
               aria-expanded={operatorMenuOpen}
               onClick={() => setOperatorMenuOpen((v) => !v)}
-              className="min-h-[32px] inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-[#0a0e14] border border-white/[0.09] hover:border-[#38bdf8]/55 text-xs font-medium text-[#eef3f8] transition-colors"
+              className="min-h-[44px] lg:min-h-[32px] inline-flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 rounded-lg bg-[#0a0e14] border border-white/[0.09] hover:border-[#38bdf8]/55 text-xs font-medium text-[#eef3f8] transition-colors"
             >
               <Users className="w-3.5 h-3.5 text-[#38bdf8] shrink-0" />
               <span className="max-w-[68px] sm:max-w-[120px] truncate">
@@ -983,30 +1029,30 @@ export default function App() {
           </div>
         </div>
 
-        {/* Live Data Sync + Glance Mode Exit + Mobile Faction Select + Counter + Reset */}
+        {/* Live Data Sync + Glance Mode Exit + Mobile Menu Trigger + Counter + Reset */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           {glanceMode && (
             <button
               type="button"
               onClick={() => handleToggleGlanceMode(false)}
-              className="min-h-[32px] inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#e5a93c]/18 border border-[#e5a93c]/55 text-[#fde68a] hover:bg-[#e5a93c]/28 transition-colors whitespace-nowrap shrink-0"
+              className="min-h-[44px] lg:min-h-[32px] inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#e5a93c]/18 border border-[#e5a93c]/55 text-[#fde68a] hover:bg-[#e5a93c]/28 transition-colors whitespace-nowrap shrink-0"
             >
               <Eye className="w-3.5 h-3.5" />
               <span>Exit Glance</span>
             </button>
           )}
 
-          <select
-            aria-label="Select faction mobile"
-            value={selectedFaction}
-            onChange={(e) => handleSelectFaction(e.target.value as FactionId)}
-            className="sm:hidden min-h-[32px] rounded-lg bg-[#0a0e14] border border-white/[0.1] px-1.5 text-xs font-semibold text-[#f1f5f9] focus:outline-none focus:border-[#e5a93c]"
+          {/* Mobile Drawer Trigger (< lg): Houses Keys, Legal, Faction, Sync & Reset so header stays uncluttered */}
+          <button
+            type="button"
+            aria-label="Open tactical menu"
+            aria-expanded={mobileDrawerOpen}
+            onClick={() => setMobileDrawerOpen(true)}
+            className="lg:hidden min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-xl bg-[#0a0e14] border border-white/[0.1] text-[#e2e8f0] hover:border-[#e5a93c] transition-colors shrink-0"
           >
-            <option value="ALL">All</option>
-            <option value="LRI">LRI</option>
-            <option value="MSS">MSS</option>
-            <option value="CSI">CSI</option>
-          </select>
+            <Menu className="w-5 h-5" />
+          </button>
+
           <div className="hidden lg:flex items-center gap-2 text-xs text-[#94a3b8] whitespace-nowrap">
             <span
               className={`w-1.5 h-1.5 rounded-full shrink-0 ${
@@ -1027,7 +1073,7 @@ export default function App() {
             disabled={apiStatus.mode === "loading"}
             onClick={() => handleRefreshApi(true)}
             aria-label="Sync Game Data"
-            className="min-h-[32px] inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg text-xs font-medium text-[#e2e8f0] hover:text-white border border-white/[0.09] hover:border-white/[0.18] bg-[#141b26]/70 hover:bg-[#141b26] disabled:opacity-60 transition-colors whitespace-nowrap shrink-0"
+            className="hidden lg:inline-flex min-h-[32px] items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-[#e2e8f0] hover:text-white border border-white/[0.09] hover:border-white/[0.18] bg-[#141b26]/70 hover:bg-[#141b26] disabled:opacity-60 transition-colors whitespace-nowrap shrink-0"
           >
             <RefreshCw
               className={`w-3.5 h-3.5 ${
@@ -1037,7 +1083,7 @@ export default function App() {
             <span className="hidden xl:inline">Sync Data</span>
           </button>
 
-          <div className="text-right hidden sm:block pl-1">
+          <div className="text-right hidden lg:block pl-1">
             <div className="font-mono-tabular text-xs font-semibold text-[#f1f5f9]">
               {activeModeProgress.done}{" "}
               <span className="text-[11px] font-normal text-[#7f8ea1]">
@@ -1056,10 +1102,10 @@ export default function App() {
             type="button"
             onClick={handleResetProgress}
             title={`Reset ${workspaceMode} progress for ${activeOperatorProfile.name}`}
-            className="min-h-[32px] inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg text-xs font-medium text-[#94a3b8] hover:text-white border border-white/[0.08] hover:border-white/[0.18] bg-white/[0.025] hover:bg-white/[0.06] transition-colors whitespace-nowrap shrink-0"
+            className="hidden lg:inline-flex min-h-[32px] items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-[#94a3b8] hover:text-white border border-white/[0.08] hover:border-white/[0.18] bg-white/[0.025] hover:bg-white/[0.06] transition-colors whitespace-nowrap shrink-0"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Reset</span>
+            <span>Reset</span>
           </button>
 
           <button
@@ -1090,13 +1136,10 @@ export default function App() {
 
       {/* Responsive Workspace: Fluid Draggable Split Sidebar + Dominant Map on Desktop, Full-Screen Tabbed Views on Mobile */}
       <main className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
-        {/* Left Operations Panel (Hideout + Tasks + Vendors + Keys + Legal, hidden when Glance Mode is active on Desktop) */}
+        {/* Left Operations Panel (Hideout + Tasks + Loadout + Vendors + Keys + Legal) */}
         <aside
           style={
-            isDesktop &&
-            workspaceMode !== "vendors" &&
-            workspaceMode !== "legal" &&
-            !glanceMode
+            isDesktop && !isFullWidthDesktopWorkspace && !glanceMode
               ? { width: `${panelWidth}px` }
               : undefined
           }
@@ -1107,16 +1150,16 @@ export default function App() {
                 ? "flex"
                 : "hidden lg:flex"
           } flex-col flex-1 ${
-            workspaceMode === "vendors" || workspaceMode === "legal"
+            isFullWidthDesktopWorkspace
               ? "lg:flex-1 lg:w-full"
               : "lg:flex-none lg:shrink-0 lg:border-r border-white/[0.075]"
-          } min-h-0 bg-[#0e131b] ${
+          } min-h-0 min-w-0 bg-[#0e131b] ${
             isDraggingSplitter ? "" : "transition-[width] duration-150"
           }`}
         >
           {/* Desktop Workspace Mode Bar + Expand/Compact Width Preset Toggle */}
           <div className="hidden lg:flex items-center justify-between gap-2 px-3.5 py-2 border-b border-white/[0.075] bg-[#0e131b] shrink-0">
-            <div className="flex items-center gap-0.5 rounded-lg bg-[#0a0e14] border border-white/[0.07] p-0.5 min-w-0">
+            <div className="flex items-center gap-0.5 rounded-lg bg-[#0a0e14] border border-white/[0.07] p-0.5 min-w-0 overflow-x-auto">
               <button
                 type="button"
                 onClick={() => {
@@ -1158,6 +1201,22 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => {
+                  setWorkspaceMode("weapons");
+                  setMobileTab("weapons");
+                }}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11.5px] font-medium transition-colors whitespace-nowrap shrink-0 ${
+                  workspaceMode === "weapons"
+                    ? "bg-[#141b26] text-[#f8fafc] shadow-sm ring-1 ring-white/[0.08]"
+                    : "text-[#8896a8] hover:text-[#e2e8f0]"
+                }`}
+              >
+                <Crosshair className="w-3.5 h-3.5 text-[#e5a93c]" />
+                <span>Loadout</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
                   setWorkspaceMode("vendors");
                   setMobileTab("vendors");
                 }}
@@ -1191,14 +1250,14 @@ export default function App() {
               </button>
             </div>
 
-            {workspaceMode === "vendors" || workspaceMode === "legal" ? (
+            {isFullWidthDesktopWorkspace ? (
               <button
                 type="button"
                 onClick={() => {
                   setWorkspaceMode("hideout");
                   setMobileTab("map");
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#e2e8f0] hover:text-white border border-white/[0.1] hover:border-white/[0.2] bg-white/[0.04] hover:bg-white/[0.08] transition-colors shrink-0"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#e2e8f0] hover:text-white border border-white/[0.1] hover:border-white/[0.2] bg-white/[0.04] hover:bg-white/[0.08] transition-colors shrink-0 whitespace-nowrap"
               >
                 <MapIcon className="w-3.5 h-3.5 text-[#38bdf8]" />
                 <span>Return to Map</span>
@@ -1213,7 +1272,7 @@ export default function App() {
                     : "Expand panel width (or drag divider)"
                 }
                 aria-label={isWidePanel ? "Compact panel" : "Expand panel"}
-                className="inline-flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium text-[#94a3b8] hover:text-white border border-white/[0.08] hover:border-white/[0.18] bg-white/[0.03] hover:bg-white/[0.07] transition-colors shrink-0"
+                className="inline-flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium text-[#94a3b8] hover:text-white border border-white/[0.08] hover:border-white/[0.18] bg-white/[0.03] hover:bg-white/[0.07] transition-colors shrink-0 whitespace-nowrap"
               >
                 {isWidePanel ? (
                   <>
@@ -1268,6 +1327,14 @@ export default function App() {
               isExpanded={isWidePanel}
               isLoadingApi={apiStatus.mode === "loading"}
             />
+          ) : workspaceMode === "weapons" ? (
+            <WeaponLoadoutPanel
+              savedLoadouts={savedLoadouts}
+              onSaveLoadout={handleSaveWeaponLoadout}
+              onDeleteLoadout={handleDeleteWeaponLoadout}
+              onNotify={showToast}
+              activeOperatorName={activeOperatorProfile.name}
+            />
           ) : workspaceMode === "vendors" ? (
             <VendorShopPanel
               vendors={vendors}
@@ -1298,8 +1365,8 @@ export default function App() {
           )}
         </aside>
 
-        {/* Fluid Draggable Split Divider (Desktop lg+, hidden when Vendors/Legal full-screen or Glance Mode is active) */}
-        {workspaceMode !== "vendors" && workspaceMode !== "legal" && !glanceMode && (
+        {/* Fluid Draggable Split Divider (Desktop lg+, hidden when full-screen or Glance Mode is active) */}
+        {!isFullWidthDesktopWorkspace && !glanceMode && (
           <div
             role="separator"
             aria-orientation="vertical"
@@ -1339,10 +1406,10 @@ export default function App() {
           </div>
         )}
 
-        {/* Right Tactical Map Panel (Stays mounted for Leaflet pan/zoom persistence; hidden in full-screen Vendors/Legal views unless Glance Mode) */}
+        {/* Right Tactical Map Panel (Stays mounted for Leaflet pan/zoom persistence; hidden in full-screen views unless Glance Mode) */}
         <div
           className={`${
-            (workspaceMode === "vendors" || workspaceMode === "legal") && !glanceMode
+            isFullWidthDesktopWorkspace && !glanceMode
               ? mobileTab === "map"
                 ? "flex flex-1 min-h-0 lg:hidden"
                 : "hidden"
@@ -1393,10 +1460,10 @@ export default function App() {
         </div>
       </main>
 
-      {/* Mobile Bottom Navigation Bar (< lg only, thumb-reachable 56px height, >= 44px hit targets) */}
+      {/* Mobile 5-Tab Bottom Navigation Bar (< lg only, 64px height + 52px header = 116px <= 15% of 844px) */}
       <nav
-        aria-label="Mobile sections"
-        className="lg:hidden h-14 shrink-0 border-t border-white/[0.075] bg-[#0a0e14]/96 backdrop-blur-lg grid grid-cols-6 z-30"
+        aria-label="Mobile navigation"
+        className="lg:hidden h-16 shrink-0 border-t border-white/[0.08] bg-[#0a0e14]/96 backdrop-blur-lg grid grid-cols-5 z-30"
       >
         <button
           type="button"
@@ -1405,13 +1472,13 @@ export default function App() {
             setMobileTab("hideout");
             setWorkspaceMode("hideout");
           }}
-          className={`flex flex-col items-center justify-center gap-0.5 min-h-[44px] text-[10px] font-medium transition-colors ${
+          className={`flex flex-col items-center justify-center gap-1 min-h-[44px] text-[11px] font-medium transition-colors whitespace-nowrap ${
             mobileTab === "hideout"
               ? "text-[#e5a93c] bg-[#141b26]"
               : "text-[#8b98a9] hover:text-white"
           }`}
         >
-          <Hammer className="w-4 h-4" />
+          <Hammer className="w-5 h-5" />
           <span>Hideout</span>
         </button>
 
@@ -1422,14 +1489,31 @@ export default function App() {
             setMobileTab("tasks");
             setWorkspaceMode("tasks");
           }}
-          className={`flex flex-col items-center justify-center gap-0.5 min-h-[44px] text-[10px] font-medium transition-colors ${
+          className={`flex flex-col items-center justify-center gap-1 min-h-[44px] text-[11px] font-medium transition-colors whitespace-nowrap ${
             mobileTab === "tasks"
               ? "text-[#38bdf8] bg-[#141b26]"
               : "text-[#8b98a9] hover:text-white"
           }`}
         >
-          <CheckSquare className="w-4 h-4" />
+          <CheckSquare className="w-5 h-5" />
           <span>Tasks</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setGlanceMode(false);
+            setMobileTab("weapons");
+            setWorkspaceMode("weapons");
+          }}
+          className={`flex flex-col items-center justify-center gap-1 min-h-[44px] text-[11px] font-medium transition-colors whitespace-nowrap ${
+            mobileTab === "weapons"
+              ? "text-[#e5a93c] bg-[#141b26]"
+              : "text-[#8b98a9] hover:text-white"
+          }`}
+        >
+          <Crosshair className="w-5 h-5" />
+          <span>Loadout</span>
         </button>
 
         <button
@@ -1439,67 +1523,180 @@ export default function App() {
             setMobileTab("vendors");
             setWorkspaceMode("vendors");
           }}
-          className={`flex flex-col items-center justify-center gap-0.5 min-h-[44px] text-[10px] font-medium transition-colors ${
+          className={`flex flex-col items-center justify-center gap-1 min-h-[44px] text-[11px] font-medium transition-colors whitespace-nowrap ${
             mobileTab === "vendors"
               ? "text-[#34d399] bg-[#141b26]"
               : "text-[#8b98a9] hover:text-white"
           }`}
         >
-          <ShoppingBag className="w-4 h-4" />
+          <ShoppingBag className="w-5 h-5" />
           <span>Vendors</span>
         </button>
 
         <button
           type="button"
-          onClick={() => {
-            setGlanceMode(false);
-            setMobileTab("keys");
-            setWorkspaceMode("keys");
-          }}
-          className={`flex flex-col items-center justify-center gap-0.5 min-h-[44px] text-[10px] font-medium transition-colors ${
-            mobileTab === "keys"
-              ? "text-[#e5a93c] bg-[#141b26]"
-              : "text-[#8b98a9] hover:text-white"
-          }`}
-        >
-          <KeyRound className="w-4 h-4" />
-          <span>Keys</span>
-        </button>
-
-        <button
-          type="button"
           onClick={() => setMobileTab("map")}
-          className={`flex flex-col items-center justify-center gap-0.5 min-h-[44px] text-[10px] font-medium transition-colors ${
+          className={`flex flex-col items-center justify-center gap-1 min-h-[44px] text-[11px] font-medium transition-colors whitespace-nowrap ${
             mobileTab === "map"
               ? "text-[#38bdf8] bg-[#141b26]"
               : "text-[#8b98a9] hover:text-white"
           }`}
         >
-          <MapIcon className="w-4 h-4" />
+          <MapIcon className="w-5 h-5" />
           <span>Map</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            setGlanceMode(false);
-            setMobileTab("legal");
-            setWorkspaceMode("legal");
-          }}
-          className={`flex flex-col items-center justify-center gap-0.5 min-h-[44px] text-[10px] font-medium transition-colors ${
-            mobileTab === "legal"
-              ? "text-[#e5a93c] bg-[#141b26]"
-              : "text-[#8b98a9] hover:text-white"
-          }`}
-        >
-          <ShieldCheck className="w-4 h-4" />
-          <span>Legal</span>
         </button>
       </nav>
 
+      {/* Mobile Tactical Utility Bottom Sheet (< lg): Keys, Legal/Privacy, Faction, Sync & Reset */}
+      {mobileDrawerOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-[2050] bg-black/75 backdrop-blur-sm flex items-end"
+          onClick={() => setMobileDrawerOpen(false)}
+        >
+          <div
+            className="gzw-drawer-enter w-full max-h-[85dvh] rounded-t-3xl bg-[#0e131b] border-t border-white/[0.12] flex flex-col overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-10 h-1.5 bg-white/[0.18] rounded-full mx-auto mt-3 mb-1 shrink-0" />
+            <div className="px-5 py-3 border-b border-white/[0.075] flex items-center justify-between gap-2 shrink-0">
+              <div>
+                <div className="font-display text-base font-semibold text-[#f8fafc]">
+                  Operations Menu
+                </div>
+                <div className="text-xs text-[#8899ae]">
+                  {activeOperatorProfile.name} · {apiStatus.label}
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="Close tactical menu"
+                onClick={() => setMobileDrawerOpen(false)}
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#94a3b8] hover:text-white hover:bg-white/[0.06]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5 overflow-y-auto">
+              {/* Faction Switcher */}
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-[#9fb0c4]">Faction Filter</div>
+                <div className="grid grid-cols-4 gap-1.5 rounded-xl bg-[#0a0e14] border border-white/[0.075] p-1">
+                  {(["ALL", "LRI", "MSS", "CSI"] as FactionId[]).map((fId) => {
+                    const isSelected = selectedFaction === fId;
+                    const info = fId === "ALL" ? null : FACTIONS[fId];
+                    return (
+                      <button
+                        key={fId}
+                        type="button"
+                        onClick={() => handleSelectFaction(fId)}
+                        className={`min-h-[44px] rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+                          isSelected
+                            ? "bg-[#141b26] text-[#f8fafc] ring-1 ring-white/[0.1]"
+                            : "text-[#8b98a9]"
+                        }`}
+                      >
+                        {info && (
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: info.color }}
+                          />
+                        )}
+                        <span>{fId === "ALL" ? "All" : fId}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Additional Sections */}
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-[#9fb0c4]">More Tools &amp; Info</div>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGlanceMode(false);
+                      setMobileTab("keys");
+                      setWorkspaceMode("keys");
+                      setMobileDrawerOpen(false);
+                    }}
+                    className={`min-h-[48px] px-4 py-3 rounded-xl border flex items-center justify-between text-sm font-medium transition-colors ${
+                      mobileTab === "keys"
+                        ? "bg-[#141b26] border-[#e5a93c]/60 text-[#f8fafc]"
+                        : "bg-[#0a0e14] border-white/[0.08] text-[#e2e8f0]"
+                    }`}
+                  >
+                    <span className="inline-flex items-center gap-2.5">
+                      <KeyRound className="w-4 h-4 text-[#e5a93c]" />
+                      <span>Keys &amp; Locked Doors</span>
+                    </span>
+                    <span className="font-mono-tabular text-xs text-[#8899ae]">
+                      {ownedKeysCount}/{keysCatalog.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGlanceMode(false);
+                      setMobileTab("legal");
+                      setWorkspaceMode("legal");
+                      setMobileDrawerOpen(false);
+                    }}
+                    className={`min-h-[48px] px-4 py-3 rounded-xl border flex items-center justify-between text-sm font-medium transition-colors ${
+                      mobileTab === "legal"
+                        ? "bg-[#141b26] border-[#e5a93c]/60 text-[#f8fafc]"
+                        : "bg-[#0a0e14] border-white/[0.08] text-[#e2e8f0]"
+                    }`}
+                  >
+                    <span className="inline-flex items-center gap-2.5">
+                      <ShieldCheck className="w-4 h-4 text-[#e5a93c]" />
+                      <span>Privacy Notice, Legal &amp; Data</span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Sync & Reset Actions */}
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
+                <button
+                  type="button"
+                  disabled={apiStatus.mode === "loading"}
+                  onClick={() => {
+                    handleRefreshApi(true);
+                    setMobileDrawerOpen(false);
+                  }}
+                  className="min-h-[48px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#141b26] border border-white/[0.1] text-xs font-semibold text-[#f8fafc] disabled:opacity-60"
+                >
+                  <RefreshCw
+                    className={`w-4 h-4 text-[#38bdf8] ${
+                      apiStatus.mode === "loading" ? "animate-spin" : ""
+                    }`}
+                  />
+                  <span>Sync Game Data</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleResetProgress();
+                    setMobileDrawerOpen(false);
+                  }}
+                  className="min-h-[48px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#0a0e14] border border-white/[0.1] text-xs font-semibold text-[#cbd5e1]"
+                >
+                  <RotateCcw className="w-4 h-4 text-[#e5a93c]" />
+                  <span>Reset Current View</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Subtle Action Toast */}
       {toast && (
-        <div className="gzw-toast-enter fixed top-14 right-3 sm:right-4 z-[2000] pointer-events-none inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0e131b]/96 backdrop-blur-xl border border-[#e5a93c]/45 text-xs font-medium text-[#f1f5f9] shadow-2xl max-w-[calc(100vw-24px)] sm:max-w-sm text-left">
+        <div className="gzw-toast-enter fixed top-14 right-3 sm:right-4 z-[2200] pointer-events-none inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0e131b]/96 backdrop-blur-xl border border-[#e5a93c]/45 text-xs font-medium text-[#f1f5f9] shadow-2xl max-w-[calc(100vw-24px)] sm:max-w-sm text-left">
           <span className="w-1.5 h-1.5 rounded-full bg-[#e5a93c] shrink-0" />
           <span>{toast}</span>
         </div>

@@ -11610,7 +11610,7 @@ export const SUB_POIS_05: RawPoi05[] = [
 export const BLUE_CRATES_05: ResourceSpawn05[] = [
   {
     "id": "crate-7185",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Riki's Gamer Grill)",
     "x": 9782,
     "y": 2774,
     "poi": "Tiger Bay",
@@ -11619,7 +11619,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-7187",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Garage)",
     "x": 8684,
     "y": 5188,
     "poi": "Pha Lang Airfield",
@@ -11628,7 +11628,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6727",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Apartment Building)",
     "x": 10015,
     "y": 2718,
     "poi": "Tiger Bay",
@@ -11637,7 +11637,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-7274",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Old Wooden Bridge)",
     "x": 3781,
     "y": 2180,
     "poi": "YBL-1",
@@ -11646,7 +11646,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6728",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Remote Farms)",
     "x": 10014,
     "y": 2598,
     "poi": "Tiger Bay",
@@ -11655,16 +11655,16 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6729",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Warehouse)",
     "x": 9573,
     "y": 2895,
-    "poi": "Ban Khamphet",
+    "poi": "Tiger Bay",
     "floor": 0,
     "tier": 3
   },
   {
     "id": "crate-6730",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Warehouse)",
     "x": 9628,
     "y": 2875,
     "poi": "Tiger Bay",
@@ -11673,7 +11673,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6750",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Remote Farms)",
     "x": 9321,
     "y": 1740,
     "poi": "Blue Lagoon",
@@ -11682,7 +11682,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6749",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Bosanleng Farm)",
     "x": 9884,
     "y": 1745,
     "poi": "Blue Lagoon",
@@ -11691,7 +11691,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6731",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Wrecking Yard)",
     "x": 9559,
     "y": 3031,
     "poi": "Tiger Bay",
@@ -11700,7 +11700,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6745",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Staff Housing)",
     "x": 8466,
     "y": 4140,
     "poi": "Lakevale Sanctuary",
@@ -11709,7 +11709,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6732",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Golden Coast Cafe)",
     "x": 10088,
     "y": 2948,
     "poi": "Tiger Bay",
@@ -11718,7 +11718,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6740",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Siang Radio Station)",
     "x": 9353,
     "y": 4746,
     "poi": "Ban Pa",
@@ -11727,7 +11727,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6738",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Sisay Farm)",
     "x": 10557,
     "y": 4016,
     "poi": "Ban Pa",
@@ -11736,7 +11736,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6742",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Villa Vongphet)",
     "x": 10059,
     "y": 5230,
     "poi": "Ban Pa",
@@ -11745,7 +11745,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6741",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Farm house)",
     "x": 9599,
     "y": 5099,
     "poi": "Ban Pa",
@@ -11754,7 +11754,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6733",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Trade Depot)",
     "x": 9588,
     "y": 3098,
     "poi": "Tiger Bay",
@@ -11763,7 +11763,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6735",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Cement Factory)",
     "x": 9621,
     "y": 3302,
     "poi": "Tiger Bay",
@@ -11772,7 +11772,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6739",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Roadside House)",
     "x": 9817,
     "y": 4109,
     "poi": "Ban Pa",
@@ -11781,7 +11781,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6737",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Elder's house)",
     "x": 10523,
     "y": 3725,
     "poi": "Ban Pa",
@@ -11790,16 +11790,16 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6755",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Construction Site)",
     "x": 7942,
     "y": 6025,
-    "poi": "Ban Khamphet",
+    "poi": "Pha Lang Airfield",
     "floor": 0,
     "tier": 2
   },
   {
     "id": "crate-6734",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Trade Depot)",
     "x": 9666,
     "y": 3114,
     "poi": "Tiger Bay",
@@ -11808,7 +11808,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6747",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Construction Site)",
     "x": 10439,
     "y": 1860,
     "poi": "Blue Lagoon",
@@ -11817,7 +11817,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6754",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Wreckyard)",
     "x": 8139,
     "y": 5922,
     "poi": "Pha Lang Airfield",
@@ -11826,7 +11826,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6760",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Employee housing)",
     "x": 6715,
     "y": 6581,
     "poi": "Midnight Sapphire",
@@ -11835,7 +11835,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6770",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Savanpha Village)",
     "x": 4613,
     "y": 2951,
     "poi": "Fort Narith",
@@ -11844,7 +11844,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6758",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Hotel facilities)",
     "x": 7111,
     "y": 7003,
     "poi": "Midnight Sapphire",
@@ -11853,7 +11853,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6757",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Construction Site)",
     "x": 7461,
     "y": 5849,
     "poi": "Pha Lang Airfield",
@@ -11862,7 +11862,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6761",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Employee housing)",
     "x": 6785,
     "y": 6584,
     "poi": "Midnight Sapphire",
@@ -11871,7 +11871,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6767",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Research Facility)",
     "x": 6916,
     "y": 5100,
     "poi": "Northern Reach",
@@ -11880,7 +11880,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6783",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Dumping ground)",
     "x": 5918,
     "y": 6796,
     "poi": "Hunter's Paradise",
@@ -11889,7 +11889,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6780",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Roadside House)",
     "x": 4032,
     "y": 4528,
     "poi": "Sawmill",
@@ -11898,7 +11898,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6782",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Warehouse)",
     "x": 3706,
     "y": 3694,
     "poi": "Sawmill",
@@ -11907,7 +11907,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6773",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Fuel storage)",
     "x": 4535,
     "y": 2625,
     "poi": "Fort Narith",
@@ -11916,7 +11916,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6774",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Air Control Tower)",
     "x": 4164,
     "y": 2951,
     "poi": "Fort Narith",
@@ -11925,7 +11925,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6775",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Training Course)",
     "x": 4130,
     "y": 3156,
     "poi": "Fort Narith",
@@ -11934,7 +11934,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6784",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Ban Phouphienge)",
     "x": 5788,
     "y": 5849,
     "poi": "Hunter's Paradise",
@@ -11943,16 +11943,16 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6777",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Ambushed Truck)",
     "x": 3941,
     "y": 3489,
-    "poi": "Fort Narith",
+    "poi": "Sawmill",
     "floor": 0,
     "tier": 2
   },
   {
     "id": "crate-6776",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Nakasa village)",
     "x": 4056,
     "y": 3410,
     "poi": "Fort Narith",
@@ -11961,7 +11961,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6778",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Checkpoint)",
     "x": 4184,
     "y": 4085,
     "poi": "Sawmill",
@@ -11970,7 +11970,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6779",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Saw)",
     "x": 3927,
     "y": 4451,
     "poi": "Sawmill",
@@ -11979,7 +11979,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6781",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Khamhao Rice Depot)",
     "x": 3417,
     "y": 3218,
     "poi": "Sawmill",
@@ -11988,7 +11988,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6790",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Supply Depot)",
     "x": 4945,
     "y": 4103,
     "poi": "RLSL-1 Radio Observatory",
@@ -11997,7 +11997,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6788",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Supply Depot)",
     "x": 4983,
     "y": 4038,
     "poi": "RLSL-1 Radio Observatory",
@@ -12006,7 +12006,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6753",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Remote House)",
     "x": 8350,
     "y": 2496,
     "poi": "Blue Lagoon",
@@ -12015,7 +12015,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6751",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Farm Shed)",
     "x": 9167,
     "y": 1905,
     "poi": "Blue Lagoon",
@@ -12024,7 +12024,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6748",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Remote Homestead)",
     "x": 10620,
     "y": 2058,
     "poi": "Blue Lagoon",
@@ -12033,7 +12033,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6736",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Radio Tower)",
     "x": 8915,
     "y": 2845,
     "poi": "Blue Lagoon",
@@ -12042,16 +12042,16 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6756",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Small Marketplace)",
     "x": 7435,
     "y": 5720,
-    "poi": "Ban Khamphet",
+    "poi": "Pha Lang Airfield",
     "floor": 0,
     "tier": 2
   },
   {
     "id": "crate-6763",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Chon village)",
     "x": 7034,
     "y": 6199,
     "poi": "Midnight Sapphire",
@@ -12060,7 +12060,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6762",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Car Repair Shop)",
     "x": 6712,
     "y": 6229,
     "poi": "Midnight Sapphire",
@@ -12069,7 +12069,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6771",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Xiong Family Farm)",
     "x": 4634,
     "y": 3084,
     "poi": "Fort Narith",
@@ -12078,7 +12078,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6769",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Savanpha Village)",
     "x": 4565,
     "y": 2858,
     "poi": "Fort Narith",
@@ -12087,7 +12087,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6743",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (LAF-Occupied Villa)",
     "x": 8242,
     "y": 4322,
     "poi": "Lakevale Sanctuary",
@@ -12096,7 +12096,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6789",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Headquarters)",
     "x": 5021,
     "y": 4084,
     "poi": "RLSL-1 Radio Observatory",
@@ -12105,7 +12105,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6791",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Living Quarters)",
     "x": 5113,
     "y": 4179,
     "poi": "RLSL-1 Radio Observatory",
@@ -12114,7 +12114,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6752",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Khonwan Village Checkpoint)",
     "x": 8182,
     "y": 2054,
     "poi": "Blue Lagoon",
@@ -12123,7 +12123,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6766",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Headquarters)",
     "x": 6904,
     "y": 5243,
     "poi": "Northern Reach",
@@ -12132,7 +12132,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6804",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Construction Site)",
     "x": 5001,
     "y": 6588,
     "poi": "Hunter's Paradise",
@@ -12141,7 +12141,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6746",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Staff Housing)",
     "x": 8456,
     "y": 4188,
     "poi": "Lakevale Sanctuary",
@@ -12150,7 +12150,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6744",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Main Building)",
     "x": 8387,
     "y": 4169,
     "poi": "Lakevale Sanctuary",
@@ -12159,7 +12159,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6764",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Supply Yard)",
     "x": 7096,
     "y": 5342,
     "poi": "Northern Reach",
@@ -12168,7 +12168,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6765",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Offices)",
     "x": 7038,
     "y": 5261,
     "poi": "Northern Reach",
@@ -12177,7 +12177,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6772",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Main Entrance)",
     "x": 4419,
     "y": 3010,
     "poi": "Fort Narith",
@@ -12186,7 +12186,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6759",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Groundskeeper's Depot)",
     "x": 6890,
     "y": 6922,
     "poi": "Midnight Sapphire",
@@ -12195,7 +12195,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6768",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Field Hospital)",
     "x": 7105,
     "y": 5106,
     "poi": "Northern Reach",
@@ -12204,7 +12204,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6803",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Construction Site)",
     "x": 5015,
     "y": 6535,
     "poi": "Hunter's Paradise",
@@ -12213,7 +12213,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6805",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Nony Village)",
     "x": 5476,
     "y": 6340,
     "poi": "Hunter's Paradise",
@@ -12222,7 +12222,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6806",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Ban Langphou)",
     "x": 5228,
     "y": 6873,
     "poi": "Hunter's Paradise",
@@ -12231,7 +12231,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6818",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Chantavong Farms)",
     "x": 5767,
     "y": 2150,
     "poi": "YBL-1",
@@ -12240,7 +12240,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6820",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Remote Farms)",
     "x": 6066,
     "y": 1854,
     "poi": "YBL-1",
@@ -12249,7 +12249,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6807",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Ban Mala)",
     "x": 5284,
     "y": 5899,
     "poi": "Hunter's Paradise",
@@ -12258,7 +12258,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6813",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Military Warehouse)",
     "x": 3679,
     "y": 5242,
     "poi": "Sawmill",
@@ -12267,7 +12267,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6817",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Radio Tower)",
     "x": 6059,
     "y": 2828,
     "poi": "YBL-1",
@@ -12276,16 +12276,16 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6824",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Small Marketplace)",
     "x": 10385,
     "y": 5406,
-    "poi": "Pha Lang Airfield",
+    "poi": "Ban Pa",
     "floor": 0,
     "tier": 2
   },
   {
     "id": "crate-6821",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Khwai Buffalo Farm)",
     "x": 9331,
     "y": 6067,
     "poi": "Pha Lang Airfield",
@@ -12294,7 +12294,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6808",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Farm)",
     "x": 4826,
     "y": 5625,
     "poi": "Hunter's Paradise",
@@ -12303,7 +12303,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6814",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Thavieng Farm)",
     "x": 5209,
     "y": 3075,
     "poi": "YBL-1",
@@ -12312,7 +12312,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6823",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Construction Site)",
     "x": 8980,
     "y": 6315,
     "poi": "Pha Lang Airfield",
@@ -12321,7 +12321,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6809",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Remote Homestead)",
     "x": 5134,
     "y": 5339,
     "poi": "Hunter's Paradise",
@@ -12330,7 +12330,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6811",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Gas station)",
     "x": 7312,
     "y": 6098,
     "poi": "Midnight Sapphire",
@@ -12339,7 +12339,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6819",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Vacant Farm)",
     "x": 5756,
     "y": 1808,
     "poi": "YBL-1",
@@ -12348,7 +12348,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6810",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Lakeside Farm)",
     "x": 5832,
     "y": 5377,
     "poi": "Hunter's Paradise",
@@ -12357,7 +12357,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6815",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Roadside Houses)",
     "x": 5847,
     "y": 3025,
     "poi": "YBL-1",
@@ -12366,7 +12366,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6816",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Phon Chai Farm)",
     "x": 5800,
     "y": 3126,
     "poi": "YBL-1",
@@ -12375,7 +12375,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6812",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Farm House)",
     "x": 7427,
     "y": 6114,
     "poi": "Midnight Sapphire",
@@ -12384,7 +12384,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-6822",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Remote House)",
     "x": 9075,
     "y": 5856,
     "poi": "Pha Lang Airfield",
@@ -12393,7 +12393,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-7456",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Telescope Building)",
     "x": 5174,
     "y": 4097,
     "poi": "RLSL-1 Radio Observatory",
@@ -12402,7 +12402,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-7504",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Secluded Farm)",
     "x": 6955,
     "y": 3002,
     "poi": "YBL-1",
@@ -12411,7 +12411,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-7031",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Na Thong Farms)",
     "x": 7750,
     "y": 2947,
     "poi": "Blue Lagoon",
@@ -12420,7 +12420,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-7022",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Old Hut)",
     "x": 3445,
     "y": 3636,
     "poi": "Sawmill",
@@ -12429,7 +12429,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-7023",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Vacant Farm)",
     "x": 9770,
     "y": 4779,
     "poi": "Ban Pa",
@@ -12438,7 +12438,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-7029",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Na Thong Farms)",
     "x": 7806,
     "y": 2930,
     "poi": "Blue Lagoon",
@@ -12447,7 +12447,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-7039",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Vacant Farm)",
     "x": 3027,
     "y": 5676,
     "poi": "Sawmill",
@@ -12456,7 +12456,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-7038",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Ban Khantao)",
     "x": 2722,
     "y": 5415,
     "poi": "Sawmill",
@@ -12465,7 +12465,7 @@ export const BLUE_CRATES_05: ResourceSpawn05[] = [
   },
   {
     "id": "crate-7089",
-    "name": "Building Material Crate",
+    "name": "Building Material Crate (Phousai Village)",
     "x": 4488,
     "y": 4675,
     "poi": "Sawmill",
@@ -12487,7 +12487,7 @@ export const DISASSEMBLY_SPAWNS_05: ResourceSpawn05[] = [
     "name": "Chemical Containment Container",
     "x": 8375,
     "y": 4304,
-    "poi": "Ground Zero"
+    "poi": "Lakevale Sanctuary"
   },
   {
     "id": "dis-7262",
@@ -12501,7 +12501,7 @@ export const DISASSEMBLY_SPAWNS_05: ResourceSpawn05[] = [
     "name": "Chemical Containment Container",
     "x": 8397,
     "y": 4284,
-    "poi": "Ground Zero"
+    "poi": "Lakevale Sanctuary"
   },
   {
     "id": "dis-7265",
@@ -12550,7 +12550,7 @@ export const DISASSEMBLY_SPAWNS_05: ResourceSpawn05[] = [
     "name": "Radioisotope Fuel Cell",
     "x": 6930,
     "y": 5130,
-    "poi": "Ground Zero"
+    "poi": "Northern Reach"
   },
   {
     "id": "dis-7273",
@@ -12585,7 +12585,7 @@ export const DISASSEMBLY_SPAWNS_05: ResourceSpawn05[] = [
     "name": "Chemical Containment Container",
     "x": 8372,
     "y": 4284,
-    "poi": "Ground Zero"
+    "poi": "Lakevale Sanctuary"
   },
   {
     "id": "dis-6785",
@@ -12606,7 +12606,7 @@ export const DISASSEMBLY_SPAWNS_05: ResourceSpawn05[] = [
     "name": "Radar Signal Processor",
     "x": 5197,
     "y": 4102,
-    "poi": "Ground Zero"
+    "poi": "RLSL-1 Radio Observatory"
   },
   {
     "id": "dis-6787",
@@ -12676,7 +12676,7 @@ export const DISASSEMBLY_SPAWNS_05: ResourceSpawn05[] = [
     "name": "Last Line Defense Container",
     "x": 5160,
     "y": 4106,
-    "poi": "Ground Zero"
+    "poi": "RLSL-1 Radio Observatory"
   },
   {
     "id": "dis-6801",
@@ -12690,7 +12690,7 @@ export const DISASSEMBLY_SPAWNS_05: ResourceSpawn05[] = [
     "name": "Radar Signal Processor",
     "x": 5080,
     "y": 4024,
-    "poi": "Ground Zero"
+    "poi": "RLSL-1 Radio Observatory"
   },
   {
     "id": "dis-7495",
@@ -12704,21 +12704,21 @@ export const DISASSEMBLY_SPAWNS_05: ResourceSpawn05[] = [
     "name": "Last Line Defense Container",
     "x": 5147,
     "y": 4088,
-    "poi": "Ground Zero"
+    "poi": "RLSL-1 Radio Observatory"
   },
   {
     "id": "dis-7496",
     "name": "Last Line Defense Container",
     "x": 5140,
     "y": 4069,
-    "poi": "Ground Zero"
+    "poi": "RLSL-1 Radio Observatory"
   },
   {
     "id": "dis-7497",
     "name": "Radar Signal Processor",
     "x": 5146,
     "y": 4090,
-    "poi": "Ground Zero"
+    "poi": "RLSL-1 Radio Observatory"
   },
   {
     "id": "dis-6825",
@@ -12732,7 +12732,7 @@ export const DISASSEMBLY_SPAWNS_05: ResourceSpawn05[] = [
     "name": "Portable Satcom Terminal",
     "x": 8219,
     "y": 4277,
-    "poi": "Ground Zero"
+    "poi": "Lakevale Sanctuary"
   },
   {
     "id": "dis-6827",
@@ -12781,21 +12781,21 @@ export const DISASSEMBLY_SPAWNS_05: ResourceSpawn05[] = [
     "name": "Counter IED/Jammer Unit",
     "x": 6910,
     "y": 5240,
-    "poi": "Ground Zero"
+    "poi": "Northern Reach"
   },
   {
     "id": "dis-7027",
     "name": "Portable Satcom Terminal",
     "x": 8412,
     "y": 4252,
-    "poi": "Ground Zero"
+    "poi": "Lakevale Sanctuary"
   },
   {
     "id": "dis-7025",
     "name": "Counter IED/Jammer Unit",
     "x": 7124,
     "y": 5249,
-    "poi": "Ground Zero"
+    "poi": "Northern Reach"
   },
   {
     "id": "dis-7028",
@@ -12809,7 +12809,7 @@ export const DISASSEMBLY_SPAWNS_05: ResourceSpawn05[] = [
     "name": "Portable Satcom Terminal",
     "x": 8399,
     "y": 4302,
-    "poi": "Ground Zero"
+    "poi": "Lakevale Sanctuary"
   },
   {
     "id": "dis-7032",
@@ -12830,21 +12830,21 @@ export const DISASSEMBLY_SPAWNS_05: ResourceSpawn05[] = [
     "name": "Counter IED/Jammer Unit",
     "x": 6961,
     "y": 5194,
-    "poi": "Ground Zero"
+    "poi": "Northern Reach"
   },
   {
     "id": "dis-7087",
     "name": "Radioisotope Fuel Cell",
     "x": 6912,
     "y": 5254,
-    "poi": "Ground Zero"
+    "poi": "Northern Reach"
   },
   {
     "id": "dis-7088",
     "name": "Radioisotope Fuel Cell",
     "x": 7053,
     "y": 5222,
-    "poi": "Ground Zero"
+    "poi": "Northern Reach"
   },
   {
     "id": "dis-7090",

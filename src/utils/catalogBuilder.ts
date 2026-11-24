@@ -19,6 +19,7 @@ import {
   type RoomId,
 } from "../data/hideoutData";
 import type { ApiCachePayload, NormalizedApiRecord } from "../services/gzwApi";
+import { resolveTacticalImageUrl } from "./imageUtils";
 
 export interface CatalogMaterial {
   key: string;
@@ -214,7 +215,7 @@ export function buildMaterialsCatalog(
           required: 0,
           tiersUsed: [],
           layerHint: hint?.layerHint || guessLayerHint(req.name, ""),
-          image: null,
+          image: resolveTacticalImageUrl(null, req.name),
           description: hint?.description || `Required for ${upg.module} upgrades.`,
           spawnNotes: hint ? [...hint.spawnNotes] : ["Lamang Loot Containers & Crates"],
           usedInUpgrades: [],
@@ -248,6 +249,9 @@ export function buildMaterialsCatalog(
     "laboratory_supplies",
     "electronics",
     "tools",
+    "crafting_material",
+    "production_material",
+    "military_material",
   ];
 
   for (const ds of enrichmentDatasets) {
@@ -257,7 +261,11 @@ export function buildMaterialsCatalog(
       const existing = byNormName.get(norm);
       if (!existing) continue;
 
-      if (!existing.image && rec.image) existing.image = rec.image;
+      const resolvedImg = resolveTacticalImageUrl(rec.image, existing.name);
+      if (resolvedImg && (!existing.image || existing.image.includes("assets/items/"))) {
+        // Prefer local studio asset if it exists, otherwise take valid API image
+        if (!existing.image) existing.image = resolvedImg;
+      }
       if (rec.description && rec.description.length > existing.description.length) {
         existing.description = rec.description;
       }
@@ -327,7 +335,14 @@ export function buildDisassemblyRecipes(
 ): DisassemblyRecipeDef[] {
   const byNorm = new Map<string, DisassemblyRecipeDef>();
   for (const fallback of FALLBACK_DISASSEMBLY_RECIPES) {
-    byNorm.set(fallback.name.trim().toLowerCase(), fallback);
+    byNorm.set(fallback.name.trim().toLowerCase(), {
+      ...fallback,
+      image: resolveTacticalImageUrl(fallback.image, fallback.name),
+      outcomeDetails: fallback.outcomeDetails.map((d) => ({
+        ...d,
+        image: resolveTacticalImageUrl(d.image, d.name),
+      })),
+    });
   }
 
   const disMatMap = new Map<string, NormalizedApiRecord>();
@@ -336,7 +351,11 @@ export function buildDisassemblyRecipes(
   }
 
   const craftMatMap = new Map<string, NormalizedApiRecord>();
-  for (const rec of apiCache?.datasets?.crafting_material || []) {
+  for (const rec of [
+    ...(apiCache?.datasets?.crafting_material || []),
+    ...(apiCache?.datasets?.production_material || []),
+    ...(apiCache?.datasets?.military_material || []),
+  ]) {
     craftMatMap.set(rec.name.trim().toLowerCase(), rec);
   }
 
@@ -372,7 +391,7 @@ export function buildDisassemblyRecipes(
         sellPrice: craft?.sellPrice || uncat?.sellPrice || prev?.sellPrice,
         gridSize: craft?.gridSize || uncat?.gridSize || prev?.gridSize,
         weight: craft?.weight || uncat?.weight || prev?.weight,
-        image: craft?.image || prev?.image || null,
+        image: resolveTacticalImageUrl(craft?.image || prev?.image, outName),
       };
     });
 
@@ -398,7 +417,7 @@ export function buildDisassemblyRecipes(
       weight: matMeta?.weight || existing?.weight,
       manufacturer: matMeta?.manufacturer || existing?.manufacturer,
       category,
-      image: matMeta?.image || existing?.image || null,
+      image: resolveTacticalImageUrl(matMeta?.image || existing?.image, rec.name),
       station:
         category === "Containers & Chem"
           ? "Electronics Workshop / Lab"
@@ -448,7 +467,7 @@ export function buildDisassemblyCatalogMaterial(
     required: 1,
     tiersUsed: [],
     layerHint: "disassemblySpawns",
-    image: rec.image || null,
+    image: resolveTacticalImageUrl(rec.image, rec.name),
     description: `${rec.category} · ${rec.duration} disassembly${
       rec.gridSize ? ` · ${rec.gridSize}` : ""
     }${rec.weight ? ` · ${rec.weight}` : ""}${
@@ -544,7 +563,7 @@ export function resolveSpawnPointsForMaterial(
       points.push({
         x: dis.x,
         y: dis.y,
-        title: `${dis.name} — ${dis.poi}`,
+        title: `${dis.poi} · ${dis.name}`,
         source: "Disassembly Spawn",
         kind: "disassembly",
       });
@@ -557,7 +576,7 @@ export function resolveSpawnPointsForMaterial(
       points.push({
         x: chem.x,
         y: chem.y,
-        title: `${chem.name} — ${chem.poi}`,
+        title: `${chem.poi} · ${chem.name}`,
         source: "Chemicals Supplies Area",
         kind: "chemicals",
       });
@@ -570,7 +589,7 @@ export function resolveSpawnPointsForMaterial(
       points.push({
         x: elec.x,
         y: elec.y,
-        title: `${elec.name} — ${elec.poi}`,
+        title: `${elec.poi} · ${elec.name}`,
         source: "Electronic Supplies Area",
         kind: "electronics",
       });
@@ -583,7 +602,7 @@ export function resolveSpawnPointsForMaterial(
       points.push({
         x: med.x,
         y: med.y,
-        title: `${med.name} — ${med.poi}`,
+        title: `${med.poi} · ${med.name}`,
         source: "Medical Supplies Area",
         tier: med.poi === "Fort Narith" || med.poi === "Tiger Bay" ? "Tier 3" : "Tier 4",
         kind: "medical",
@@ -602,7 +621,7 @@ export function resolveSpawnPointsForMaterial(
         y: poi.y,
         title:
           poi.kind === "sublocation" && poi.parentRegion
-            ? `${poi.parentRegion} — ${poi.name}`
+            ? `${poi.parentRegion} · ${poi.name}`
             : poi.name,
         tier: poi.tier,
         lz: poi.lz,
@@ -632,7 +651,7 @@ export function resolveSpawnPointsForMaterial(
       points.push({
         x: crate.x,
         y: crate.y,
-        title: `Building Material Crate (L${crate.tier ?? 2}) — ${crate.poi}`,
+        title: `${crate.poi} · ${crate.name} (Lv.${crate.tier ?? 2})`,
         tier: crate.tier ? `Crate Lv.${crate.tier}` : undefined,
         source: "Blue-Planked Material Crate",
         kind: "crate",

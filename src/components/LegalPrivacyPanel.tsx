@@ -107,7 +107,7 @@ export function LegalPrivacyPanel({
             <span aria-hidden="true">·</span>
             <span>Per-Visitor Browser Isolation</span>
             <span aria-hidden="true">·</span>
-            <span>Notice updated: 22 November 2026</span>
+            <span>Notice updated: 24 November 2026</span>
           </div>
           <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-[#f8fafc] mt-2">
             Your progress. Your browser. Your control.
@@ -155,23 +155,8 @@ export function LegalPrivacyPanel({
                   The app stores only what you enter locally for your three browser operator slots (
                   {operatorProfiles.map((p) => p.name).join(", ")}), including slot labels, chosen
                   faction filter, Hideout built/planned upgrade states, stash counts, completed
-                  tasks, owned keys, map material ticks, custom recon pins and notes, and sidebar
-                  panel width.
-                </p>
-                <p>
-                  <strong className="text-[#f1f5f9] font-semibold">
-                    Screen Sync &amp; Compass Watcher (Volatile Memory Only):
-                  </strong>{" "}
-                  If you choose to start Monitor-2 Screen Sync, your browser&apos;s built-in screen
-                  capture (<code className="font-mono-tabular text-xs text-[#7dd3fc]">getDisplayMedia</code>)
-                  analyses frames from your selected window solely inside local browser RAM using
-                  Canvas pixel matching and client-side OCR (<code className="font-mono-tabular text-xs text-[#7dd3fc]">Tesseract.js</code>)
-                  to detect your map position and compass bearing.{" "}
-                  <strong className="text-white">
-                    No screenshots, video streams, or captured frames are ever uploaded, recorded,
-                    stored, or transmitted anywhere.
-                  </strong>{" "}
-                  Stopping Screen Sync or closing the tab ends capture immediately.
+                  tasks, owned keys, saved Gunsmith weapon loadouts, map material ticks, custom
+                  recon pins and notes, and sidebar panel width.
                 </p>
                 <p>
                   <strong className="text-[#f1f5f9] font-semibold">
@@ -347,10 +332,11 @@ export function LegalPrivacyPanel({
                   <strong className="text-[#f1f5f9] font-semibold">
                     Fair Play &amp; External-Only Operation:
                   </strong>{" "}
-                  This companion runs solely inside a standard browser as an interactive map,
-                  progress checklist, and optional second-monitor visual helper. It never reads or
-                  modifies game memory, binaries, files, or network packets. You remain solely
-                  responsible for complying with MADFINGER Games&apos; Terms of Service and EULA.
+                  This companion runs solely inside a standard browser as an interactive map and
+                  progress checklist. It never reads or modifies game memory, binaries, files, or
+                  network packets, and performs no screen capture or automated live tracking. You
+                  remain solely responsible for complying with MADFINGER Games&apos; Terms of Service
+                  and EULA.
                 </p>
                 <p>
                   <strong className="text-[#f1f5f9] font-semibold">
@@ -414,7 +400,7 @@ export function LegalPrivacyPanel({
               </div>
 
               {/* Action Buttons */}
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 <button
                   type="button"
                   onClick={() => {
@@ -424,9 +410,9 @@ export function LegalPrivacyPanel({
                       text: "Exported full progress backup (.json).",
                     });
                   }}
-                  className="w-full min-h-[40px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#e5a93c] hover:bg-[#eab654] text-[#090d12] text-xs font-semibold transition-colors"
+                  className="w-full min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#e5a93c] hover:bg-[#eab654] text-[#090d12] text-xs font-semibold transition-colors"
                 >
-                  <Download className="w-3.5 h-3.5" />
+                  <Download className="w-4 h-4" />
                   <span>Export my progress</span>
                 </button>
 
@@ -441,9 +427,9 @@ export function LegalPrivacyPanel({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full min-h-[40px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#0a0e14] hover:bg-[#101722] border border-white/[0.12] hover:border-[#38bdf8]/60 text-[#e2e8f0] hover:text-white text-xs font-medium transition-colors"
+                  className="w-full min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#0a0e14] hover:bg-[#101722] border border-white/[0.12] hover:border-[#38bdf8]/60 text-[#e2e8f0] hover:text-white text-xs font-medium transition-colors"
                 >
-                  <Upload className="w-3.5 h-3.5 text-[#38bdf8]" />
+                  <Upload className="w-4 h-4 text-[#38bdf8]" />
                   <span>Restore a progress backup</span>
                 </button>
 
@@ -451,16 +437,16 @@ export function LegalPrivacyPanel({
                   <button
                     type="button"
                     onClick={() => setConfirmErase(true)}
-                    className="w-full min-h-[40px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#0a0e14] hover:bg-red-950/35 border border-white/[0.1] hover:border-red-500/50 text-red-300 hover:text-red-200 text-xs font-medium transition-colors"
+                    className="w-full min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#0a0e14] hover:bg-red-950/35 border border-white/[0.1] hover:border-red-500/50 text-red-300 hover:text-red-200 text-xs font-medium transition-colors"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4" />
                     <span>Erase my app data</span>
                   </button>
                 ) : (
-                  <div className="rounded-lg bg-red-950/30 border border-red-500/45 p-3 space-y-2.5">
+                  <div className="rounded-xl bg-red-950/30 border border-red-500/45 p-3.5 space-y-2.5">
                     <p className="text-xs text-red-200 leading-relaxed">
                       This permanently removes all saved operators, Hideout plans, tasks, keys,
-                      stash counts, custom pins, and cached data from this browser.
+                      weapon loadouts, stash counts, custom pins, and cached data from this browser.
                     </p>
                     <div className="flex items-center gap-2">
                       <button
@@ -473,14 +459,14 @@ export function LegalPrivacyPanel({
                             text: "All local app data has been erased and reset.",
                           });
                         }}
-                        className="flex-1 min-h-[36px] px-3 py-1.5 rounded-md bg-red-500 hover:bg-red-400 text-white text-xs font-semibold transition-colors"
+                        className="flex-1 min-h-[44px] px-3 py-2 rounded-lg bg-red-500 hover:bg-red-400 text-white text-xs font-semibold transition-colors"
                       >
                         Confirm erase
                       </button>
                       <button
                         type="button"
                         onClick={() => setConfirmErase(false)}
-                        className="min-h-[36px] px-3 py-1.5 rounded-md bg-[#0a0e14] border border-white/[0.12] text-xs font-medium text-[#cbd5e1] hover:text-white transition-colors"
+                        className="min-h-[44px] px-3 py-2 rounded-lg bg-[#0a0e14] border border-white/[0.12] text-xs font-medium text-[#cbd5e1] hover:text-white transition-colors"
                       >
                         Cancel
                       </button>

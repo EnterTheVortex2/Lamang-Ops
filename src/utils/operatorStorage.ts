@@ -4,6 +4,7 @@ import {
   type FactionId,
 } from "../config/mapConfig";
 import { safeStorageGet, safeStorageSet } from "../services/gzwApi";
+import type { SavedWeaponLoadout } from "./weaponBuilder";
 
 export type OperatorSlotId = "op-1" | "op-2" | "op-3";
 
@@ -18,6 +19,7 @@ export interface OperatorStateSnapshot {
   ownedKeys: Record<string, boolean>;
   tickedMapMaterials: Record<string, boolean>;
   customPins: CustomMapPin[];
+  savedLoadouts: SavedWeaponLoadout[];
 }
 
 export interface OperatorProfileMeta {
@@ -59,6 +61,7 @@ export function createEmptyOperatorSnapshot(): OperatorStateSnapshot {
     ownedKeys: {},
     tickedMapMaterials: {},
     customPins: DEFAULT_SEED_PINS.map((p) => ({ ...p })),
+    savedLoadouts: [],
   };
 }
 
@@ -108,6 +111,16 @@ function sanitizeSnapshot(raw: Partial<OperatorStateSnapshot> | null): OperatorS
     customPins: Array.isArray(raw.customPins)
       ? raw.customPins
       : empty.customPins,
+    savedLoadouts: Array.isArray(raw.savedLoadouts)
+      ? raw.savedLoadouts.filter(
+          (l): l is SavedWeaponLoadout =>
+            !!l &&
+            typeof l === "object" &&
+            typeof l.id === "string" &&
+            typeof l.weaponId === "string" &&
+            typeof l.name === "string"
+        )
+      : [],
   };
 }
 
@@ -139,6 +152,7 @@ export function ensureOperatorsInitialized(): void {
         LEGACY_KEYS.customPins,
         DEFAULT_SEED_PINS
       ),
+      savedLoadouts: [],
     };
     safeStorageSet(op1Key, legacySnapshot);
   }

@@ -219,29 +219,29 @@ export function TasksTrackerPanel({
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-[#0e131b]">
       {/* Vendor & Region Filter Controls */}
-      <div className="px-4 py-3 border-b border-white/[0.075] bg-[#0e131b] space-y-2.5 shrink-0">
+      <div className="px-4 py-3.5 border-b border-white/[0.075] bg-[#0e131b] space-y-3 shrink-0">
         {/* Horizontal scrollable Vendor Roster Strip */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
           <button
             type="button"
             onClick={() => {
               setSelectedVendor("ALL");
               setSelectedArea("ALL");
             }}
-            className={`min-h-[42px] px-2.5 py-1.5 rounded-lg border text-left transition-colors shrink-0 flex items-center gap-2 ${
+            className={`min-h-[52px] px-3 py-2 rounded-xl border text-left transition-colors shrink-0 flex items-center gap-2.5 ${
               selectedVendor === "ALL"
                 ? "bg-[#141b26] border-[#e5a93c]/65 text-[#f8fafc]"
                 : "bg-[#0a0e14] border-white/[0.07] text-[#9fb0c4] hover:text-white hover:border-white/[0.16]"
             }`}
           >
-            <div className="w-7 h-7 rounded-md bg-[#0e131b] border border-white/[0.08] flex items-center justify-center text-[11px] font-semibold text-[#e5a93c]">
+            <div className="w-9 h-9 rounded-lg bg-[#0e131b] border border-white/[0.08] flex items-center justify-center text-xs font-semibold text-[#e5a93c]">
               All
             </div>
             <div>
               <div className="text-xs font-semibold leading-tight">
                 All Vendors
               </div>
-              <div className="font-mono-tabular text-[11px] text-[#8899ae]">
+              <div className="font-mono-tabular text-xs text-[#8899ae]">
                 {totalDone}/{factionTasks.length}
               </div>
             </div>
@@ -262,7 +262,7 @@ export function TasksTrackerPanel({
                   setSelectedVendor(vendor.name);
                   setSelectedArea("ALL");
                 }}
-                className={`min-h-[42px] px-2.5 py-1.5 rounded-lg border text-left transition-colors shrink-0 flex items-center gap-2 ${
+                className={`min-h-[52px] px-3 py-2 rounded-xl border text-left transition-colors shrink-0 flex items-center gap-2.5 ${
                   active
                     ? "bg-[#141b26] border-[#e5a93c]/65 text-[#f8fafc]"
                     : "bg-[#0a0e14] border-white/[0.07] text-[#9fb0c4] hover:text-white hover:border-white/[0.16]"
@@ -274,19 +274,19 @@ export function TasksTrackerPanel({
                     alt={vendor.name}
                     referrerPolicy="no-referrer"
                     onError={() => markImgFailed(vendor.image!)}
-                    className="w-7 h-7 rounded-md object-cover border border-white/[0.1] bg-[#080b10] shrink-0"
+                    className="w-9 h-9 rounded-lg object-cover object-top border border-white/[0.1] bg-[#080b10] shrink-0"
                     loading="lazy"
                   />
                 ) : (
-                  <div className="w-7 h-7 rounded-md bg-[#0e131b] border border-white/[0.08] flex items-center justify-center shrink-0">
-                    <User className="w-3.5 h-3.5 text-[#8899ae]" />
+                  <div className="w-9 h-9 rounded-lg bg-[#0e131b] border border-white/[0.08] flex items-center justify-center shrink-0">
+                    <User className="w-4 h-4 text-[#8899ae]" />
                   </div>
                 )}
                 <div>
                   <div className="text-xs font-semibold leading-tight whitespace-nowrap">
                     {vendor.name}
                   </div>
-                  <div className="font-mono-tabular text-[11px] text-[#8899ae]">
+                  <div className="font-mono-tabular text-xs text-[#8899ae]">
                     {stats.done}/{stats.total}
                   </div>
                 </div>
@@ -296,9 +296,9 @@ export function TasksTrackerPanel({
         </div>
 
         {/* Direct Vendor & Area Dropdowns */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <div>
-            <label className="block text-[11px] font-medium text-[#9fb0c4] mb-1">
+            <label className="block text-xs font-medium text-[#9fb0c4] mb-1">
               Vendor
             </label>
             <select
@@ -308,7 +308,7 @@ export function TasksTrackerPanel({
                 setSelectedVendor(e.target.value);
                 setSelectedArea("ALL");
               }}
-              className="w-full min-h-[36px] bg-[#0a0e14] border border-white/[0.08] rounded-lg px-2.5 py-1 text-[13px] text-[#f1f5f9] focus:outline-none focus:border-[#e5a93c]"
+              className="w-full min-h-[44px] lg:min-h-[38px] bg-[#0a0e14] border border-white/[0.08] rounded-xl px-3 py-2 text-sm lg:text-[13px] text-[#f1f5f9] focus:outline-none focus:border-[#e5a93c]"
             >
               <option value="ALL">All Vendors ({factionTasks.length})</option>
               {vendors.map((v) => {
@@ -324,14 +324,14 @@ export function TasksTrackerPanel({
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-[11px] font-medium text-[#9fb0c4]">
+              <label className="block text-xs font-medium text-[#9fb0c4]">
                 Region
               </label>
               {selectedFaction !== "ALL" && (
                 <button
                   type="button"
                   onClick={() => setShowAllFactionsOverride((v) => !v)}
-                  className="text-[11px] font-medium text-[#38bdf8] hover:underline"
+                  className="text-xs font-medium text-[#38bdf8] hover:underline"
                 >
                   {showAllFactionsOverride
                     ? `Filter: ${selectedFaction}`
@@ -348,7 +348,7 @@ export function TasksTrackerPanel({
                   : "ALL"
               }
               onChange={(e) => setSelectedArea(e.target.value)}
-              className="w-full min-h-[36px] bg-[#0a0e14] border border-white/[0.08] rounded-lg px-2.5 py-1 text-[13px] text-[#f1f5f9] focus:outline-none focus:border-[#e5a93c]"
+              className="w-full min-h-[44px] lg:min-h-[38px] bg-[#0a0e14] border border-white/[0.08] rounded-xl px-3 py-2 text-sm lg:text-[13px] text-[#f1f5f9] focus:outline-none focus:border-[#e5a93c]"
             >
               <option value="ALL">
                 All Regions ({vendorScopedTasks.length})
@@ -369,7 +369,7 @@ export function TasksTrackerPanel({
         </div>
 
         {/* Search + Type + Status Row */}
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <div className="relative">
             <Search className="w-4 h-4 text-[#7b8ca1] absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -381,18 +381,18 @@ export function TasksTrackerPanel({
                   ? `Search ${activeVendorProfile.name} tasks, walkthroughs, or keys...`
                   : "Search task, region, walkthrough, or required key..."
               }
-              className="w-full min-h-[36px] bg-[#0a0e14] border border-white/[0.08] rounded-lg pl-9 pr-3 py-1.5 text-[13px] text-[#f1f5f9] placeholder:text-[#66778b] focus:outline-none focus:border-[#e5a93c] transition-colors"
+              className="w-full min-h-[44px] lg:min-h-[38px] bg-[#0a0e14] border border-white/[0.08] rounded-xl pl-9 pr-3 py-2 text-sm lg:text-[13px] text-[#f1f5f9] placeholder:text-[#66778b] focus:outline-none focus:border-[#e5a93c] transition-colors"
             />
           </div>
 
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center rounded-lg bg-[#0a0e14] border border-white/[0.07] p-0.5 overflow-x-auto max-w-full">
+            <div className="flex items-center rounded-xl bg-[#0a0e14] border border-white/[0.07] p-1 overflow-x-auto max-w-full">
               {CATEGORY_OPTIONS.map((opt) => (
                 <button
                   key={opt.id}
                   type="button"
                   onClick={() => setCategoryFilter(opt.id)}
-                  className={`px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                  className={`min-h-[38px] lg:min-h-[32px] px-2.5 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
                     categoryFilter === opt.id
                       ? "bg-[#141b26] text-[#e5a93c] ring-1 ring-white/[0.08]"
                       : "text-[#94a3b8] hover:text-[#f1f5f9]"
@@ -403,7 +403,7 @@ export function TasksTrackerPanel({
               ))}
             </div>
 
-            <div className="flex items-center rounded-lg bg-[#0a0e14] border border-white/[0.07] p-0.5 shrink-0">
+            <div className="flex items-center rounded-xl bg-[#0a0e14] border border-white/[0.07] p-1 shrink-0">
               {(
                 [
                   { id: "all", label: "All" },
@@ -415,7 +415,7 @@ export function TasksTrackerPanel({
                   key={st.id}
                   type="button"
                   onClick={() => setStatusFilter(st.id)}
-                  className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+                  className={`min-h-[38px] lg:min-h-[32px] px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
                     statusFilter === st.id
                       ? "bg-[#141b26] text-[#38bdf8] ring-1 ring-white/[0.08]"
                       : "text-[#94a3b8] hover:text-[#f1f5f9]"
@@ -430,10 +430,11 @@ export function TasksTrackerPanel({
       </div>
 
       {/* Scrollable Tasks Feed */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+        <div className={`space-y-4 ${isExpanded ? "max-w-4xl mx-auto" : ""}`}>
         {activeVendorProfile && (
-          <div className="rounded-xl bg-[#141b26] border border-white/[0.075] p-3.5 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
+          <div className="rounded-2xl bg-[#141b26] border border-white/[0.08] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-4 min-w-0">
               {activeVendorProfile.image &&
               !failedImgUrls[activeVendorProfile.image] ? (
                 <img
@@ -441,36 +442,41 @@ export function TasksTrackerPanel({
                   alt={activeVendorProfile.name}
                   referrerPolicy="no-referrer"
                   onError={() => markImgFailed(activeVendorProfile.image!)}
-                  className="w-10 h-10 rounded-lg object-cover border border-white/[0.12] shrink-0"
+                  className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl object-cover object-top border border-white/[0.14] bg-[#0a0e14] shrink-0 shadow-lg"
                 />
               ) : (
-                <div className="w-10 h-10 rounded-lg bg-[#0a0e14] border border-white/[0.08] flex items-center justify-center shrink-0">
-                  <User className="w-5 h-5 text-[#e5a93c]" />
+                <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl bg-[#0a0e14] border border-white/[0.08] flex items-center justify-center shrink-0">
+                  <User className="w-8 h-8 text-[#e5a93c]" />
                 </div>
               )}
-              <div className="min-w-0">
-                <div className="font-display text-sm font-semibold text-[#f8fafc] truncate">
+              <div className="min-w-0 space-y-1">
+                <div className="font-display text-lg sm:text-xl font-semibold text-[#f8fafc] leading-tight">
                   {activeVendorProfile.name}{" "}
                   {activeVendorProfile.fullName !== "Unknown" && (
-                    <span className="text-[#9fb0c4] font-normal text-xs">
+                    <span className="text-[#9fb0c4] font-normal text-xs sm:text-sm">
                       · {activeVendorProfile.fullName}
                     </span>
                   )}
                 </div>
-                <div className="text-xs text-[#9fb0c4] truncate mt-0.5">
+                <div className="text-xs sm:text-[13px] text-[#cbd5e1] leading-relaxed">
                   {activeVendorProfile.specialty}
                 </div>
+                {activeVendorProfile.sells && (
+                  <div className="text-xs text-[#8899ae] line-clamp-2">
+                    Supplies: {activeVendorProfile.sells}
+                  </div>
+                )}
               </div>
             </div>
-            <div className="text-right shrink-0">
-              <div className="font-mono-tabular text-sm font-semibold text-[#e5a93c]">
+            <div className="flex sm:flex-col items-center sm:items-end justify-between border-t sm:border-t-0 pt-2.5 sm:pt-0 border-white/[0.07] shrink-0">
+              <div className="text-xs text-[#8899ae]">Completed Tasks</div>
+              <div className="font-mono-tabular text-lg font-semibold text-[#e5a93c]">
                 {vendorStats.get(activeVendorProfile.name.toLowerCase())?.done ??
                   0}{" "}
                 /{" "}
                 {vendorStats.get(activeVendorProfile.name.toLowerCase())
                   ?.total ?? 0}
               </div>
-              <div className="text-xs text-[#8899ae]">Completed</div>
             </div>
           </div>
         )}
@@ -503,11 +509,7 @@ export function TasksTrackerPanel({
             {selectedArea !== "ALL" ? ` in ${selectedArea}` : ""}.
           </div>
         ) : (
-          <div
-            className={`grid gap-3 ${
-              isExpanded ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"
-            }`}
-          >
+          <div className="grid grid-cols-1 gap-3.5">
             {filteredTasks.map((task) => {
               const isDone = !!completedTasks[task.id];
               const isSelected = selectedTaskId === task.id;
@@ -905,13 +907,13 @@ export function TasksTrackerPanel({
 
                   {/* Card Footer */}
                   <div
-                    className="mt-3.5 pt-2.5 border-t border-white/[0.06] flex items-center justify-between gap-2"
+                    className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between gap-2"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <button
                       type="button"
                       onClick={() => onLocateTaskOnMap(task)}
-                      className={`min-h-[36px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                      className={`min-h-[44px] lg:min-h-[36px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-medium transition-colors ${
                         isSelected
                           ? "bg-[#15283b] border-[#38bdf8] text-[#7dd3fc]"
                           : "bg-white/[0.035] border-white/[0.09] text-[#38bdf8] hover:border-[#38bdf8]"
@@ -926,7 +928,7 @@ export function TasksTrackerPanel({
                     <button
                       type="button"
                       onClick={() => onToggleTaskComplete(task.id)}
-                      className={`min-h-[36px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors whitespace-nowrap ${
+                      className={`min-h-[44px] lg:min-h-[36px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-medium transition-colors whitespace-nowrap ${
                         isDone
                           ? "bg-[#112922] border-[#2e7359] text-[#34d399] hover:border-[#34d399]"
                           : "bg-white/[0.035] border-white/[0.09] text-[#e2e8f0] hover:border-[#e5a93c] hover:text-[#e5a93c]"
@@ -941,6 +943,7 @@ export function TasksTrackerPanel({
             })}
           </div>
         )}
+        </div>
       </div>
 
       {/* Full-Resolution Building & Objective Photo Lightbox */}
@@ -968,7 +971,7 @@ export function TasksTrackerPanel({
                 type="button"
                 onClick={() => setLightboxImage(null)}
                 aria-label="Close photo preview"
-                className="p-1.5 rounded-lg text-[#94a3b8] hover:text-white hover:bg-white/[0.06]"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-[#94a3b8] hover:text-white hover:bg-white/[0.06]"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -978,7 +981,7 @@ export function TasksTrackerPanel({
                 src={lightboxImage.src}
                 alt={lightboxImage.caption || lightboxImage.title}
                 referrerPolicy="no-referrer"
-                className="max-h-[78vh] w-auto object-contain rounded-lg"
+                className="max-h-[78vh] w-auto object-contain rounded"
               />
             </div>
           </div>

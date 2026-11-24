@@ -18,6 +18,8 @@ const PRIORITY_DATASETS = [
   "disassembly_recipes",
   "disassembly_material",
   "crafting_material",
+  "production_material",
+  "military_material",
   "building_material",
   "workshop_supplies",
   "laboratory_supplies",
@@ -41,16 +43,16 @@ const PRIORITY_DATASETS = [
 ];
 
 const MAX_PAGES_BY_DATASET: Record<string, number> = {
-  vendor_stock: 13,
-  tasks: 7,
-  side_task: 3,
-  keys: 3,
-  task_items: 3,
-  task_guides: 2,
-  intels: 6,
-  contract: 2,
-  contracts: 2,
-  loot_container: 2,
+  vendor_stock: 25,
+  tasks: 12,
+  side_task: 6,
+  keys: 5,
+  task_items: 5,
+  task_guides: 5,
+  intels: 10,
+  contract: 4,
+  contracts: 4,
+  loot_container: 4,
 };
 
 const gzwClient = new GzwDataClient({
@@ -298,6 +300,31 @@ async function fetchBootstrapFromGzw(force = false): Promise<BootstrapCachePaylo
       }
     }
 
+    const imageMap = new Map<string, string>();
+    try {
+      const imgRes = await fetch(`${API_ROOT}/images`, {
+        signal: AbortSignal.timeout(9000),
+      });
+      if (imgRes.ok) {
+        const imgJson = (await imgRes.json()) as {
+          images?: Record<string, string>;
+        };
+        if (imgJson?.images && typeof imgJson.images === "object") {
+          for (const [k, url] of Object.entries(imgJson.images)) {
+            if (
+              typeof url === "string" &&
+              url.trim() &&
+              !url.toLowerCase().includes("missing_icon")
+            ) {
+              imageMap.set(k.trim().toLowerCase(), url.trim());
+            }
+          }
+        }
+      }
+    } catch {
+      // Optional /images lookup
+    }
+
     const targetDatasets = Array.from(discoveredSet);
     const datasets: Record<string, NormalizedApiRecord[]> = {};
     const activeEndpoints: string[] = [];
@@ -307,7 +334,7 @@ async function fetchBootstrapFromGzw(force = false): Promise<BootstrapCachePaylo
       const slice = targetDatasets.slice(i, i + batchSize);
       const settled = await Promise.allSettled(
         slice.map(async (dataset) => {
-          const maxPages = MAX_PAGES_BY_DATASET[dataset] ?? 2;
+          const maxPages = MAX_PAGES_BY_DATASET[dataset] ?? 5;
           const rows: NormalizedApiRecord[] = [];
           let page = 1;
 
@@ -336,7 +363,16 @@ async function fetchBootstrapFromGzw(force = false): Promise<BootstrapCachePaylo
             page += 1;
           }
 
-          const cleanRows = rows.filter((r) => !r.name.startsWith("<DEV>"));
+          const cleanRows = rows
+            .filter((r) => !r.name.startsWith("<DEV>"))
+            .map((r) => {
+              if (r.image) return r;
+              const matched =
+                imageMap.get(r.name.trim().toLowerCase()) ||
+                imageMap.get(r.id.trim().toLowerCase()) ||
+                null;
+              return matched ? { ...r, image: toProxiedImageUrl(matched) } : r;
+            });
           return { dataset, rows: cleanRows };
         })
       );
@@ -602,7 +638,7 @@ async function startServer() {
     try {
       const records: NormalizedApiRecord[] = [];
       let page = 1;
-      const maxPages = 5;
+      const maxPages = 12;
       while (page <= maxPages) {
         const upstreamRes = await fetch(
           `${API_ROOT}/${encodeURIComponent(dataset)}?page=${page}`,

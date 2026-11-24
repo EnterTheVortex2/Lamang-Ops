@@ -253,9 +253,9 @@ export function HideoutTrackerPanel({
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-[#0e131b]">
       {/* Hideout Controls & Navigation */}
-      <div className="px-4 py-3 border-b border-white/[0.075] bg-[#0e131b] space-y-2.5 shrink-0">
+      <div className="px-4 py-3.5 border-b border-white/[0.075] bg-[#0e131b] space-y-3 shrink-0">
         {/* Search Input + Quick Supply List Action */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <div className="relative flex-1 min-w-0">
             <Search className="w-4 h-4 text-[#7b8ca1] absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -267,26 +267,26 @@ export function HideoutTrackerPanel({
                   ? "Search disassembly item or yielded material..."
                   : "Search upgrade or material..."
               }
-              className="w-full min-h-[36px] bg-[#0a0e14] border border-white/[0.08] rounded-lg pl-9 pr-3 py-1.5 text-[13px] text-[#f1f5f9] placeholder:text-[#66778b] focus:outline-none focus:border-[#e5a93c] transition-colors"
+              className="w-full min-h-[44px] lg:min-h-[38px] bg-[#0a0e14] border border-white/[0.08] rounded-xl pl-9 pr-3 py-2 text-sm lg:text-[13px] text-[#f1f5f9] placeholder:text-[#66778b] focus:outline-none focus:border-[#e5a93c] transition-colors"
             />
           </div>
 
           <button
             type="button"
             onClick={() => onViewChange("manifest")}
-            className={`min-h-[36px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+            className={`min-h-[44px] lg:min-h-[38px] inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
               activeView === "manifest"
                 ? "bg-[#f0b94d] text-[#080b10]"
                 : "bg-[#e5a93c] hover:bg-[#f0b94d] text-[#080b10]"
             }`}
           >
-            <ClipboardList className="w-3.5 h-3.5" />
+            <ClipboardList className="w-4 h-4" />
             <span>Supply List ({supplyManifest.rows.filter((r) => r.toFind > 0).length})</span>
           </button>
         </div>
 
-        {/* Sub-view Switcher Tabs */}
-        <div className="grid grid-cols-4 gap-1 rounded-lg bg-[#0a0e14] border border-white/[0.07] p-0.5">
+        {/* Sub-view Switcher Tabs (2x2 on narrow mobile, 4-col on sm+) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl bg-[#0a0e14] border border-white/[0.07] p-1">
           {(
             [
               { id: "planner", label: "Upgrades" },
@@ -301,7 +301,7 @@ export function HideoutTrackerPanel({
                 key={tab.id}
                 type="button"
                 onClick={() => onViewChange(tab.id)}
-                className={`min-h-[32px] px-1.5 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap text-center ${
+                className={`min-h-[42px] lg:min-h-[34px] px-2 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap text-center ${
                   active
                     ? "bg-[#141b26] text-[#f8fafc] shadow-sm ring-1 ring-white/[0.08]"
                     : "text-[#94a3b8] hover:text-[#e2e8f0]"
@@ -320,7 +320,7 @@ export function HideoutTrackerPanel({
               aria-label="Filter hideout by room"
               value={roomFilter}
               onChange={(e) => setRoomFilter(e.target.value as "all" | RoomId)}
-              className="min-h-[34px] bg-[#0a0e14] border border-white/[0.08] rounded-lg px-2.5 py-1 text-xs text-[#f1f5f9] focus:outline-none focus:border-[#e5a93c]"
+              className="w-full sm:w-auto min-h-[44px] lg:min-h-[36px] bg-[#0a0e14] border border-white/[0.08] rounded-xl px-3 py-2 text-xs text-[#f1f5f9] focus:outline-none focus:border-[#e5a93c]"
             >
               <option value="all">All Rooms ({allUpgrades.length})</option>
               <option value="utility">
@@ -334,13 +334,13 @@ export function HideoutTrackerPanel({
               </option>
             </select>
 
-            <div className="flex items-center rounded-lg bg-[#0a0e14] border border-white/[0.07] p-0.5">
+            <div className="flex items-center rounded-xl bg-[#0a0e14] border border-white/[0.07] p-1">
               {([0, 1, 2, 3] as const).map((lvl) => (
                 <button
                   key={lvl}
                   type="button"
                   onClick={() => setTierFilter(lvl)}
-                  className={`px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                  className={`min-h-[38px] lg:min-h-[30px] px-2.5 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
                     tierFilter === lvl
                       ? "bg-[#141b26] text-[#e5a93c] ring-1 ring-white/[0.08]"
                       : "text-[#94a3b8] hover:text-[#e2e8f0]"
@@ -351,7 +351,7 @@ export function HideoutTrackerPanel({
               ))}
             </div>
 
-            <div className="flex items-center rounded-lg bg-[#0a0e14] border border-white/[0.07] p-0.5">
+            <div className="flex items-center rounded-xl bg-[#0a0e14] border border-white/[0.07] p-1 overflow-x-auto max-w-full">
               {(
                 [
                   { id: "all", label: "All" },
@@ -364,7 +364,7 @@ export function HideoutTrackerPanel({
                   key={st.id}
                   type="button"
                   onClick={() => setStatusFilter(st.id)}
-                  className={`px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                  className={`min-h-[38px] lg:min-h-[30px] px-2.5 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
                     statusFilter === st.id
                       ? "bg-[#141b26] text-[#38bdf8] ring-1 ring-white/[0.08]"
                       : "text-[#94a3b8] hover:text-[#e2e8f0]"
@@ -592,10 +592,10 @@ export function HideoutTrackerPanel({
 
                     {/* Card Footer */}
                     <div
-                      className="mt-3.5 pt-2.5 border-t border-white/[0.06] flex items-center justify-between gap-2"
+                      className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between gap-2"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <label className="inline-flex items-center gap-2 text-xs text-[#cbd5e1] hover:text-white cursor-pointer select-none">
+                      <label className="min-h-[44px] lg:min-h-[32px] inline-flex items-center gap-2 text-xs text-[#cbd5e1] hover:text-white cursor-pointer select-none pr-2">
                         <input
                           type="checkbox"
                           checked={isPlanned}
@@ -608,7 +608,7 @@ export function HideoutTrackerPanel({
                       <button
                         type="button"
                         onClick={() => onToggleBuilt(upg.id)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors whitespace-nowrap ${
+                        className={`min-h-[44px] lg:min-h-[34px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-medium transition-colors whitespace-nowrap ${
                           isBuilt
                             ? "bg-[#112922] border-[#2e7359] text-[#34d399] hover:border-[#34d399]"
                             : "bg-white/[0.035] border-white/[0.1] text-[#e2e8f0] hover:border-[#e5a93c] hover:text-[#e5a93c]"
@@ -736,21 +736,23 @@ export function HideoutTrackerPanel({
                           className="flex items-center justify-between sm:justify-end gap-3 shrink-0"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <div className="flex items-center gap-1 bg-[#0a0e14] border border-white/[0.08] rounded-lg px-2.5 py-1">
+                          <div className="flex items-center gap-1 bg-[#0a0e14] border border-white/[0.08] rounded-xl px-2.5 py-1">
                             <span className="text-xs text-[#9fb0c4] mr-1">Stash</span>
                             {!isDollars && (
                               <button
                                 type="button"
+                                aria-label={`Decrease ${row.name} stash count`}
                                 onClick={() =>
                                   onSetStashCount(row.key, Math.max(0, row.stash - 1))
                                 }
-                                className="w-6 h-6 flex items-center justify-center rounded-md text-[#9fb0c4] hover:text-[#e5a93c]"
+                                className="w-9 h-9 lg:w-7 lg:h-7 flex items-center justify-center rounded-lg text-[#9fb0c4] hover:text-[#e5a93c] hover:bg-white/[0.05]"
                               >
-                                <Minus className="w-3.5 h-3.5" />
+                                <Minus className="w-4 h-4" />
                               </button>
                             )}
                             <input
                               type="number"
+                              aria-label={`${row.name} stash count`}
                               min={0}
                               step={isDollars ? 1000 : 1}
                               value={row.stash}
@@ -761,16 +763,17 @@ export function HideoutTrackerPanel({
                                 )
                               }
                               className={`${
-                                isDollars ? "w-20" : "w-11"
-                              } bg-transparent text-center font-mono-tabular text-[13px] text-[#f8fafc] focus:outline-none`}
+                                isDollars ? "w-24" : "w-12"
+                              } min-h-[36px] bg-transparent text-center font-mono-tabular text-sm text-[#f8fafc] focus:outline-none`}
                             />
                             {!isDollars && (
                               <button
                                 type="button"
+                                aria-label={`Increase ${row.name} stash count`}
                                 onClick={() => onSetStashCount(row.key, row.stash + 1)}
-                                className="w-6 h-6 flex items-center justify-center rounded-md text-[#9fb0c4] hover:text-[#e5a93c]"
+                                className="w-9 h-9 lg:w-7 lg:h-7 flex items-center justify-center rounded-lg text-[#9fb0c4] hover:text-[#e5a93c] hover:bg-white/[0.05]"
                               >
-                                <Plus className="w-3.5 h-3.5" />
+                                <Plus className="w-4 h-4" />
                               </button>
                             )}
                           </div>
@@ -910,7 +913,7 @@ export function HideoutTrackerPanel({
                         e.target.value as "all" | DisassemblyCategory
                       )
                     }
-                    className="min-h-[32px] bg-[#0a0e14] border border-white/[0.08] rounded-lg px-2.5 py-1 text-xs text-[#f1f5f9] focus:outline-none focus:border-[#e5a93c]"
+                    className="w-full sm:w-auto min-h-[44px] lg:min-h-[34px] bg-[#0a0e14] border border-white/[0.08] rounded-xl px-3 py-2 text-xs text-[#f1f5f9] focus:outline-none focus:border-[#e5a93c]"
                   >
                     <option value="all">
                       All Categories ({disassemblyRecipes.length})
@@ -920,7 +923,7 @@ export function HideoutTrackerPanel({
                     <option value="Avionics & Weapons">Avionics &amp; Weapons</option>
                   </select>
 
-                  <div className="flex items-center rounded-lg bg-[#0a0e14] border border-white/[0.07] p-0.5">
+                  <div className="flex items-center rounded-xl bg-[#0a0e14] border border-white/[0.07] p-1">
                     {(
                       [
                         { id: "all", label: "All Times" },
@@ -933,7 +936,7 @@ export function HideoutTrackerPanel({
                         key={d.id}
                         type="button"
                         onClick={() => setDisassemblyDurationFilter(d.id)}
-                        className={`px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                        className={`min-h-[38px] lg:min-h-[30px] px-2.5 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
                           disassemblyDurationFilter === d.id
                             ? "bg-[#141b26] text-[#e5a93c] ring-1 ring-white/[0.08]"
                             : "text-[#94a3b8] hover:text-[#e2e8f0]"
@@ -1061,8 +1064,8 @@ export function HideoutTrackerPanel({
                         </div>
 
                         {/* Spawn Footer */}
-                        <div className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-center justify-between gap-2 text-xs">
-                          <div className="min-w-0 text-[11px] text-[#9fb0c4] truncate">
+                        <div className="mt-3 pt-2.5 border-t border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                          <div className="min-w-0 text-xs text-[#9fb0c4] truncate">
                             {spawnInfo.pois.length > 0
                               ? `Spawns: ${spawnInfo.pois.join(", ")}`
                               : rec.station}
@@ -1071,7 +1074,7 @@ export function HideoutTrackerPanel({
                             <button
                               type="button"
                               onClick={() => onInspectDisassemblyItem(rec)}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0a0e14] hover:bg-[#101824] border border-white/[0.1] hover:border-[#38bdf8] text-[#38bdf8] hover:text-[#7dd3fc] text-xs font-medium whitespace-nowrap transition-colors shrink-0"
+                              className="min-h-[44px] lg:min-h-[34px] inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0a0e14] hover:bg-[#101824] border border-white/[0.1] hover:border-[#38bdf8] text-[#38bdf8] hover:text-[#7dd3fc] text-xs font-medium whitespace-nowrap transition-colors shrink-0"
                             >
                               <MapPin className="w-3.5 h-3.5" />
                               <span>Locate Spawns ({spawnInfo.count})</span>

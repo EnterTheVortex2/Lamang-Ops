@@ -1,6 +1,7 @@
 import { LAMANG_POIS, type LamangPoi } from "../config/mapConfig";
 import { CURATED_TASK_WALKTHROUGHS } from "../data/taskWalkthroughs";
 import type { ApiCachePayload, NormalizedApiRecord } from "../services/gzwApi";
+import { getVendorPortraitUrl, resolveTacticalImageUrl } from "./imageUtils";
 
 export type TaskCategory =
   | "Main Task"
@@ -164,7 +165,10 @@ export function buildVendorProfiles(
 ): VendorProfile[] {
   const byName = new Map<string, VendorProfile>();
   for (const v of CANONICAL_VENDORS) {
-    byName.set(v.name.toLowerCase(), { ...v });
+    byName.set(v.name.toLowerCase(), {
+      ...v,
+      image: getVendorPortraitUrl(v.name, v.image),
+    });
   }
 
   const apiVendors = apiCache?.datasets?.vendors || [];
@@ -192,7 +196,7 @@ export function buildVendorProfiles(
         typeof raw.buys === "string" && raw.buys.trim()
           ? raw.buys.trim()
           : undefined,
-      image: rec.image || existing?.image || null,
+      image: getVendorPortraitUrl(name, rec.image || existing?.image || null),
     });
   }
 
@@ -671,7 +675,7 @@ export function buildAllTasks(apiCache: ApiCachePayload | null): GzwTaskDef[] {
         relatedMap.set(k.nameLower, {
           name: k.rec.name,
           kind: k.isKeycard ? "Keycard" : "Key",
-          image: k.rec.image,
+          image: resolveTacticalImageUrl(k.rec.image, k.rec.name),
           note: k.usage || "Unlocks locked quest door",
           gridSize: k.rec.gridSize,
         });
@@ -690,7 +694,7 @@ export function buildAllTasks(apiCache: ApiCachePayload | null): GzwTaskDef[] {
           relatedMap.set(it.nameLower, {
             name: it.rec.name,
             kind: it.kind,
-            image: it.rec.image,
+            image: resolveTacticalImageUrl(it.rec.image, it.rec.name),
             note: it.rec.weight ? `Weight ${it.rec.weight}` : "Mission item",
             gridSize: it.rec.gridSize,
           });
@@ -776,7 +780,7 @@ export function buildAllTasks(apiCache: ApiCachePayload | null): GzwTaskDef[] {
       objectivesList: parsedObj.steps,
       walkthroughSteps,
       walkthroughSource,
-      guideImage: apiGuide?.image || null,
+      guideImage: resolveTacticalImageUrl(apiGuide?.image || null, name),
       guideTip: curated?.tip,
       exactCoords,
       relatedItems: Array.from(relatedMap.values()),
@@ -798,7 +802,7 @@ export function buildAllTasks(apiCache: ApiCachePayload | null): GzwTaskDef[] {
         typeof raw.faction === "string" && raw.faction.trim()
           ? raw.faction.trim()
           : undefined,
-      image: rec.image,
+      image: resolveTacticalImageUrl(rec.image, name),
       matchedPois,
     });
   }
@@ -879,7 +883,7 @@ export function buildAllTasks(apiCache: ApiCachePayload | null): GzwTaskDef[] {
       walkthroughSteps:
         parsed.steps.length > 0 ? parsed.steps : curated?.steps || [],
       walkthroughSource: "api-guide",
-      guideImage: g.image || null,
+      guideImage: resolveTacticalImageUrl(g.image || null, gName),
       guideTip: curated?.tip,
       exactCoords: Array.from(exactCoordsMap.values()),
       relatedItems:
@@ -890,7 +894,7 @@ export function buildAllTasks(apiCache: ApiCachePayload | null): GzwTaskDef[] {
           note: "Recommended mission gear",
         })) || [],
       nearestLzs: collectNearestLzs(matchedPois),
-      image: g.image || null,
+      image: resolveTacticalImageUrl(g.image || null, gName),
       matchedPois,
     });
   }

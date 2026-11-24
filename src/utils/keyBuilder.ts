@@ -4,6 +4,7 @@ import {
   type LamangPoi,
 } from "../config/mapConfig";
 import type { ApiCachePayload } from "../services/gzwApi";
+import { resolveTacticalImageUrl } from "./imageUtils";
 import type { GzwTaskDef } from "./taskBuilder";
 
 export interface GzwKeyDoorDef {
@@ -25,20 +26,20 @@ export interface GzwKeyDoorDef {
 }
 
 const REGION_RULES: { match: RegExp; region: string }[] = [
-  { match: /fort narith|fn_/i, region: "Fort Narith" },
-  { match: /midnight sapphire|hotel/i, region: "Midnight Sapphire" },
-  { match: /tiger bay|unlra/i, region: "Tiger Bay" },
-  { match: /pha lang airfield|airport/i, region: "Pha Lang Airfield" },
-  { match: /pha lang/i, region: "Pha Lang" },
-  { match: /kiu vongsa/i, region: "Kiu Vongsa" },
-  { match: /nam thaven/i, region: "Nam Thaven" },
-  { match: /hunter'?s paradise/i, region: "Hunter's Paradise" },
-  { match: /sawmill/i, region: "Sawmill" },
-  { match: /blue lagoon/i, region: "Blue Lagoon" },
-  { match: /ban pa/i, region: "Ban Pa" },
-  { match: /ybl[-\s]*1/i, region: "YBL-1 Bunker" },
-  { match: /northern reach/i, region: "Northern Reach" },
-  { match: /lakevale|sanctuary/i, region: "Lakevale Sanctuary" },
+  { match: /fort narith|\bfn[\s_-]|airfield.*barrack/i, region: "Fort Narith" },
+  { match: /midnight sapphire|sapphire|\bms[\s_-]|hotel\b/i, region: "Midnight Sapphire" },
+  { match: /tiger bay|unlra|\btb[\s_-]/i, region: "Tiger Bay" },
+  { match: /pha lang airfield|\bpla\b|airport/i, region: "Pha Lang Airfield" },
+  { match: /pha lang|\bpl[\s_-]/i, region: "Pha Lang" },
+  { match: /kiu vongsa|\bkv[\s_-]/i, region: "Kiu Vongsa" },
+  { match: /nam thaven|\bnt[\s_-]|khonwan/i, region: "Nam Thaven" },
+  { match: /hunter'?s paradise|\bhp[\s_-]/i, region: "Hunter's Paradise" },
+  { match: /sawmill|\bsm[\s_-]/i, region: "Sawmill" },
+  { match: /blue lagoon|\bbl[\s_-]/i, region: "Blue Lagoon" },
+  { match: /ban pa|\bbp[\s_-]/i, region: "Ban Pa" },
+  { match: /ybl[-\s]*1|\bybl\b/i, region: "YBL-1 Bunker" },
+  { match: /northern reach|\bnr[\s_-]/i, region: "Northern Reach" },
+  { match: /lakevale|sanctuary|\bls[\s_-]/i, region: "Lakevale Sanctuary" },
   { match: /rlsl[-\s]*1|observatory/i, region: "RLSL-1 Radio Observatory" },
 ];
 
@@ -72,7 +73,8 @@ function extractDoorTarget(name: string, usage: string): string {
 function resolvePoiForKey(
   name: string,
   usage: string,
-  region: string
+  region: string,
+  linkedTasks: { id: string; name: string; vendor: string; areas: string[] }[]
 ): LamangPoi {
   const combined = `${name} ${usage}`.toLowerCase();
 
@@ -89,16 +91,21 @@ function resolvePoiForKey(
   }
 
   // 2. Match any sublocation inside this region whose words appear in key name/usage
+  const effectiveRegion =
+    region !== "Lamang Island"
+      ? region
+      : linkedTasks.find((t) => t.areas.length > 0)?.areas[0] || region;
+
   const regionSubPois = LAMANG_POIS.filter(
     (p) =>
       p.kind === "sublocation" &&
-      (p.parentRegion || "").toLowerCase() === region.toLowerCase()
+      (p.parentRegion || "").toLowerCase() === effectiveRegion.toLowerCase()
   );
   for (const sub of regionSubPois) {
     const tokens = sub.name
       .toLowerCase()
       .split(/\s+/)
-      .filter((t) => t.length >= 4 && t !== region.toLowerCase());
+      .filter((t) => t.length >= 4 && t !== effectiveRegion.toLowerCase());
     if (tokens.some((tok) => combined.includes(tok))) {
       return sub;
     }
@@ -108,13 +115,13 @@ function resolvePoiForKey(
   const major = LAMANG_POIS.find(
     (p) =>
       (p.kind === "major" || p.kind === "tier4") &&
-      p.name.toLowerCase() === region.toLowerCase()
+      p.name.toLowerCase() === effectiveRegion.toLowerCase()
   );
   if (major) return major;
 
-  // 4. Island fallback (Central Ground Zero edge)
+  // 4. Island Ground Zero / Central fallback
   return (
-    LAMANG_POIS.find((p) => p.name === "Nam Thaven") || LAMANG_POIS[0]
+    LAMANG_POIS.find((p) => p.name === "Ground Zero") || LAMANG_POIS[0]
   );
 }
 
@@ -155,20 +162,33 @@ export function buildKeysAndDoorsCatalog(
       }
     }
 
-    const poi = resolvePoiForKey(name, usage, region);
+    // Cross-reference tasks needing this key/keycard first so we can infer region if needed
+    const nameLower = name.toLowerCase();
+    const linkedTasksFull = allTasks.filter((t) =>
+      t.relatedItems.some((ri) => ri.name.toLowerCase() === nameLower)
+    );
+    const linkedTasks = linkedTasksFull.map((t) => ({
+      id: t.id,
+      name: t.name,
+      vendor: t.vendor,
+      areas: t.areas,
+    }));
+
+    if (region === "Lamang Island") {
+      const taskArea = linkedTasksFull.find(
+        (t) => t.areas[0] && t.areas[0] !== "Lamang Island"
+      )?.areas[0];
+      if (taskArea) region = taskArea;
+    }
+
+    const poi = resolvePoiForKey(name, usage, region, linkedTasks);
     if (region === "Lamang Island" && poi.parentRegion) {
       region = poi.parentRegion;
+    } else if (region === "Lamang Island" && (poi.kind === "major" || poi.kind === "tier4")) {
+      region = poi.name;
     }
 
     const doorTarget = extractDoorTarget(name, usage);
-
-    // Cross-reference tasks needing this key/keycard
-    const nameLower = name.toLowerCase();
-    const linkedTasks = allTasks
-      .filter((t) =>
-        t.relatedItems.some((ri) => ri.name.toLowerCase() === nameLower)
-      )
-      .map((t) => ({ id: t.id, name: t.name, vendor: t.vendor }));
 
     items.push({
       id: rec.id,
@@ -177,15 +197,22 @@ export function buildKeysAndDoorsCatalog(
       usage: usage || `Unlocks ${doorTarget} in ${region}`,
       doorTarget,
       region,
-      sublocation: poi.kind === "sublocation" ? poi.name : null,
+      sublocation:
+        poi.kind === "sublocation"
+          ? poi.name.replace(new RegExp(`^${region}\\s*`, "i"), "").trim() || poi.name
+          : null,
       x: poi.x,
       y: poi.y,
       grid: formatGridSquare(poi.x, poi.y),
       lz: poi.lz,
-      image: rec.image,
+      image: resolveTacticalImageUrl(rec.image, name),
       weight: rec.weight,
       sellPrice: rec.sellPrice,
-      linkedTasks,
+      linkedTasks: linkedTasks.map(({ id, name: tName, vendor }) => ({
+        id,
+        name: tName,
+        vendor,
+      })),
     });
   }
 

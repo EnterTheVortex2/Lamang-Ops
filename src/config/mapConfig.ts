@@ -409,6 +409,7 @@ const REGION_LOOT_TAGS: Record<string, string[]> = {
     "water pump",
     "cnc drill bits",
     "chemicals",
+    "fabrics",
   ],
   "YBL-1 Bunker": [
     "blue_crate",
@@ -482,6 +483,7 @@ const REGION_LOOT_TAGS: Record<string, string[]> = {
     "refrigerant",
     "burner head",
     "chemicals",
+    "fabrics",
   ],
   "Blue Lagoon": [
     "blue_crate",
@@ -497,6 +499,7 @@ const REGION_LOOT_TAGS: Record<string, string[]> = {
     "glass",
     "electrical parts",
     "chemicals",
+    "fabrics",
   ],
 };
 
@@ -615,6 +618,12 @@ function buildTagsForSub(poi: RawPoi05): string[] {
   if (/kitchen|canteen|mess hall|restaurant/.test(n) && tierNum >= 2) {
     tags.add("burner head");
     tags.add("refrigerant");
+  }
+
+  // Residential / Barracks / Villas / Camps / Shelters -> Fabrics & Household Materials
+  if (/villa|house|motel|hotel|barracks|dorm|shelter|camp|village|hut/.test(n)) {
+    tags.add("fabrics");
+    tags.add("glass");
   }
 
   // Industrial Warehouses, Hangars, Motor Pools, Supply Yards (NO starter town blue crates)
