@@ -31,6 +31,7 @@ import type {
   DisassemblyRecipeDef,
   HideoutUpgradeDef,
 } from "./data/hideoutData";
+import type { ResolvedPuzzleDoor } from "./data/puzzleDoorsData";
 import {
   HideoutTrackerPanel,
   type PlannerViewId,
@@ -242,6 +243,7 @@ export default function App() {
   const stashCounts = opState.stashCounts;
   const completedTasks = opState.completedTasks;
   const ownedKeys = opState.ownedKeys;
+  const puzzleStepsDone = opState.puzzleStepsDone || {};
   const tickedMapMaterials = opState.tickedMapMaterials;
   const customPins = opState.customPins;
   const savedLoadouts = opState.savedLoadouts || [];
@@ -282,6 +284,11 @@ export default function App() {
   const [isLookupLoading, setIsLookupLoading] = useState(false);
   const [inspectedTask, setInspectedTask] = useState<GzwTaskDef | null>(null);
   const [inspectedKey, setInspectedKey] = useState<GzwKeyDoorDef | null>(null);
+  const [inspectedPuzzleDoor, setInspectedPuzzleDoor] =
+    useState<ResolvedPuzzleDoor | null>(null);
+  const [inspectedPuzzleStepId, setInspectedPuzzleStepId] = useState<
+    string | null
+  >(null);
 
   const [pinDropMode, setPinDropMode] = useState(false);
   const [preselectedPinMatId, setPreselectedPinMatId] = useState("");
@@ -493,6 +500,8 @@ export default function App() {
     async (mat: CatalogMaterial) => {
       setInspectedTask(null);
       setInspectedKey(null);
+      setInspectedPuzzleDoor(null);
+      setInspectedPuzzleStepId(null);
       setInspectedMaterial(mat);
       setInspectedLookup(null);
       setIsLookupLoading(true);
@@ -519,6 +528,8 @@ export default function App() {
     (task: GzwTaskDef) => {
       setInspectedMaterial(null);
       setInspectedKey(null);
+      setInspectedPuzzleDoor(null);
+      setInspectedPuzzleStepId(null);
       setInspectedTask(task);
       ensureMapVisibleFor("tasks");
     },
@@ -529,10 +540,51 @@ export default function App() {
     (keyDef: GzwKeyDoorDef) => {
       setInspectedMaterial(null);
       setInspectedTask(null);
+      setInspectedPuzzleDoor(null);
+      setInspectedPuzzleStepId(null);
       setInspectedKey(keyDef);
       ensureMapVisibleFor("keys");
     },
     [ensureMapVisibleFor]
+  );
+
+  const handleLocatePuzzleDoorOnMap = useCallback(
+    (door: ResolvedPuzzleDoor, focusStepId?: string) => {
+      setInspectedMaterial(null);
+      setInspectedTask(null);
+      setInspectedKey(null);
+      setInspectedPuzzleDoor(door);
+      setInspectedPuzzleStepId(focusStepId || null);
+      ensureMapVisibleFor("keys");
+    },
+    [ensureMapVisibleFor]
+  );
+
+  const handleTogglePuzzleStep = useCallback(
+    (stepId: string) => {
+      updateOpState((prev) => ({
+        ...prev,
+        puzzleStepsDone: {
+          ...(prev.puzzleStepsDone || {}),
+          [stepId]: !(prev.puzzleStepsDone || {})[stepId],
+        },
+      }));
+    },
+    [updateOpState]
+  );
+
+  const handleResetPuzzleDoorSteps = useCallback(
+    (stepIds: string[]) => {
+      updateOpState((prev) => {
+        const nextSteps = { ...(prev.puzzleStepsDone || {}) };
+        stepIds.forEach((id) => {
+          delete nextSteps[id];
+        });
+        return { ...prev, puzzleStepsDone: nextSteps };
+      });
+      showToast("Reset puzzle breach checklist");
+    },
+    [updateOpState, showToast]
   );
 
   const handleInspectApiRecord = useCallback(
@@ -812,8 +864,12 @@ export default function App() {
       updateOpState((prev) => ({ ...prev, completedTasks: {} }));
       showToast(`Cleared task progress for ${opName}`);
     } else if (workspaceMode === "keys") {
-      updateOpState((prev) => ({ ...prev, ownedKeys: {} }));
-      showToast(`Cleared keyholder list for ${opName}`);
+      updateOpState((prev) => ({
+        ...prev,
+        ownedKeys: {},
+        puzzleStepsDone: {},
+      }));
+      showToast(`Cleared keyholder & puzzle checklists for ${opName}`);
     } else if (workspaceMode === "weapons") {
       updateOpState((prev) => ({ ...prev, savedLoadouts: [] }));
       showToast(`Cleared saved weapon loadouts for ${opName}`);
@@ -1016,6 +1072,8 @@ export default function App() {
     setInspectedMaterial(null);
     setInspectedTask(null);
     setInspectedKey(null);
+    setInspectedPuzzleDoor(null);
+    setInspectedPuzzleStepId(null);
     showToast("All saved browser app data erased");
   }, [showToast]);
 
@@ -1531,6 +1589,14 @@ export default function App() {
               selectedKeyId={inspectedKey?.id || null}
               onLocateKeyOnMap={handleLocateKeyOnMap}
               onSelectLinkedTask={handleLocateTaskById}
+              selectedPuzzleDoorId={inspectedPuzzleDoor?.id || null}
+              onLocatePuzzleDoorOnMap={handleLocatePuzzleDoorOnMap}
+              puzzleStepsDone={puzzleStepsDone}
+              onTogglePuzzleStep={handleTogglePuzzleStep}
+              onResetPuzzleDoorSteps={handleResetPuzzleDoorSteps}
+              onLocateItem={handleLocateByName}
+              builtUpgrades={builtUpgrades}
+              completedTasks={completedTasks}
               isExpanded={isWidePanel}
               isLoadingApi={apiStatus.mode === "loading"}
             />
@@ -1616,6 +1682,15 @@ export default function App() {
             inspectedKey={inspectedKey}
             onSelectKey={handleLocateKeyOnMap}
             onCloseInspectKey={() => setInspectedKey(null)}
+            inspectedPuzzleDoor={inspectedPuzzleDoor}
+            inspectedPuzzleStepId={inspectedPuzzleStepId}
+            onSelectPuzzleDoor={handleLocatePuzzleDoorOnMap}
+            onCloseInspectPuzzleDoor={() => {
+              setInspectedPuzzleDoor(null);
+              setInspectedPuzzleStepId(null);
+            }}
+            puzzleStepsDone={puzzleStepsDone}
+            onTogglePuzzleStep={handleTogglePuzzleStep}
             onSelectMaterial={handleInspectMaterial}
             disassemblyRecipes={disassemblyRecipes}
             onSelectDisassembly={handleInspectDisassemblyItem}

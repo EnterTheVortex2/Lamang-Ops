@@ -20,6 +20,7 @@ export interface OperatorStateSnapshot {
   tickedMapMaterials: Record<string, boolean>;
   customPins: CustomMapPin[];
   savedLoadouts: SavedWeaponLoadout[];
+  puzzleStepsDone: Record<string, boolean>;
 }
 
 export interface OperatorProfileMeta {
@@ -62,6 +63,7 @@ export function createEmptyOperatorSnapshot(): OperatorStateSnapshot {
     tickedMapMaterials: {},
     customPins: DEFAULT_SEED_PINS.map((p) => ({ ...p })),
     savedLoadouts: [],
+    puzzleStepsDone: {},
   };
 }
 
@@ -121,6 +123,10 @@ function sanitizeSnapshot(raw: Partial<OperatorStateSnapshot> | null): OperatorS
             typeof l.name === "string"
         )
       : [],
+    puzzleStepsDone:
+      raw.puzzleStepsDone && typeof raw.puzzleStepsDone === "object"
+        ? raw.puzzleStepsDone
+        : {},
   };
 }
 
@@ -153,6 +159,7 @@ export function ensureOperatorsInitialized(): void {
         DEFAULT_SEED_PINS
       ),
       savedLoadouts: [],
+      puzzleStepsDone: {},
     };
     safeStorageSet(op1Key, legacySnapshot);
   }

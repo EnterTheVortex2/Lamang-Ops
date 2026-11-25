@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Compass,
   Copy,
+  Cpu,
   Crosshair,
   Eye,
   Grid3X3,
@@ -19,8 +20,10 @@ import {
   Pencil,
   Ruler,
   Search,
+  ShieldAlert,
   Trash2,
   X,
+  Zap,
 } from "lucide-react";
 import {
   BLUE_CRATES_05,
@@ -50,6 +53,10 @@ import {
   type CatalogMaterial,
 } from "../utils/catalogBuilder";
 import type { DisassemblyRecipeDef } from "../data/hideoutData";
+import {
+  getResolvedPuzzleDoors,
+  type ResolvedPuzzleDoor,
+} from "../data/puzzleDoorsData";
 import type { GzwKeyDoorDef } from "../utils/keyBuilder";
 import type { GzwTaskDef } from "../utils/taskBuilder";
 import { ItemThumbnail } from "./ItemThumbnail";
@@ -88,6 +95,12 @@ interface TacticalMapPanelProps {
   inspectedKey?: GzwKeyDoorDef | null;
   onSelectKey?: (keyDef: GzwKeyDoorDef) => void;
   onCloseInspectKey?: () => void;
+  inspectedPuzzleDoor?: ResolvedPuzzleDoor | null;
+  inspectedPuzzleStepId?: string | null;
+  onSelectPuzzleDoor?: (door: ResolvedPuzzleDoor, focusStepId?: string) => void;
+  onCloseInspectPuzzleDoor?: () => void;
+  puzzleStepsDone?: Record<string, boolean>;
+  onTogglePuzzleStep?: (stepId: string) => void;
   onSelectMaterial?: (mat: CatalogMaterial) => void;
   disassemblyRecipes?: DisassemblyRecipeDef[];
   onSelectDisassembly?: (recipe: DisassemblyRecipeDef) => void;
@@ -196,6 +209,12 @@ export function TacticalMapPanel({
   inspectedKey = null,
   onSelectKey,
   onCloseInspectKey,
+  inspectedPuzzleDoor = null,
+  inspectedPuzzleStepId = null,
+  onSelectPuzzleDoor,
+  onCloseInspectPuzzleDoor,
+  puzzleStepsDone = {},
+  onTogglePuzzleStep,
   onSelectMaterial,
   disassemblyRecipes = [],
   onSelectDisassembly,
@@ -929,34 +948,125 @@ export function TacticalMapPanel({
     }
   }, [inspectedTask, selectedFaction, safeFlyTo, fitIslandView]);
 
-  // Render & fly to inspected Key / Locked Door
+  // Render & fly to inspected Key / Locked Door OR Puzzle Breach Route
   useEffect(() => {
     const layer = keyFocusLayerRef.current;
     layer.clearLayers();
-    if (!inspectedKey) return;
 
-    const marker = L.marker(toLatLng(inspectedKey.x, inspectedKey.y), {
-      icon: createTargetPinIcon(
-        inspectedKey.kind === "Keycard" ? "#38bdf8" : "#e5a93c",
-        "K",
-        true
-      ),
-      zIndexOffset: 920,
-    });
-    marker.bindPopup(`
-      <div style="min-width:205px;">
-        <div style="font-family:monospace;font-size:10px;color:#e5a93c;font-weight:700;">${escapeHtml(inspectedKey.kind.toUpperCase())} · LOCKED DOOR</div>
-        <div style="font-weight:700;font-size:13px;margin:2px 0;">${escapeHtml(inspectedKey.name)}</div>
-        <div style="font-size:11px;color:#cbd5e1;">${escapeHtml(inspectedKey.usage)}</div>
-        <div style="font-family:monospace;font-size:10px;color:#38bdf8;margin-top:4px;">Grid ${escapeHtml(inspectedKey.grid)} · ${escapeHtml(inspectedKey.sublocation || inspectedKey.region)}</div>
+    if (inspectedKey) {
+      const marker = L.marker(toLatLng(inspectedKey.x, inspectedKey.y), {
+        icon: createTargetPinIcon(
+          inspectedKey.kind === "Keycard" ? "#38bdf8" : "#e5a93c",
+          "K",
+          true
+        ),
+        zIndexOffset: 920,
+      });
+      marker.bindPopup(`
+        <div style="min-width:205px;">
+          <div style="font-family:monospace;font-size:10px;color:#e5a93c;font-weight:700;">${escapeHtml(inspectedKey.kind.toUpperCase())} · LOCKED DOOR</div>
+          <div style="font-weight:700;font-size:13px;margin:2px 0;">${escapeHtml(inspectedKey.name)}</div>
+          <div style="font-size:11px;color:#cbd5e1;">${escapeHtml(inspectedKey.usage)}</div>
+          <div style="font-family:monospace;font-size:10px;color:#38bdf8;margin-top:4px;">Grid ${escapeHtml(inspectedKey.grid)} · ${escapeHtml(inspectedKey.sublocation || inspectedKey.region)}</div>
+        </div>
+      `);
+      marker.addTo(layer);
+
+      if (mapRef.current) {
+        safeFlyTo(inspectedKey.x, inspectedKey.y, 17, 0.65);
+      }
+      return;
+    }
+
+    if (!inspectedPuzzleDoor) return;
+
+    const stepsWithCoords = inspectedPuzzleDoor.steps.filter(
+      (s) => s.coords !== null
+    );
+
+    if (stepsWithCoords.length > 0) {
+      const routePoints = stepsWithCoords.map((s) =>
+        toLatLng(s.coords!.x, s.coords!.y)
+      );
+      const last = stepsWithCoords[stepsWithCoords.length - 1].coords!;
+      if (
+        Math.hypot(
+          last.x - inspectedPuzzleDoor.x,
+          last.y - inspectedPuzzleDoor.y
+        ) > 12
+      ) {
+        routePoints.push(
+          toLatLng(inspectedPuzzleDoor.x, inspectedPuzzleDoor.y)
+        );
+      }
+      if (routePoints.length >= 2) {
+        L.polyline(routePoints, {
+          color: "#38bdf8",
+          weight: 2.5,
+          opacity: 0.85,
+          dashArray: "6, 6",
+        }).addTo(layer);
+      }
+    }
+
+    const doorMarker = L.marker(
+      toLatLng(inspectedPuzzleDoor.x, inspectedPuzzleDoor.y),
+      {
+        icon: createTargetPinIcon("#e5a93c", "D", !inspectedPuzzleStepId),
+        zIndexOffset: 925,
+      }
+    );
+    doorMarker.bindPopup(`
+      <div style="min-width:220px;">
+        <div style="font-family:monospace;font-size:10px;color:#e5a93c;font-weight:700;">${escapeHtml(inspectedPuzzleDoor.breachBadge.toUpperCase())}</div>
+        <div style="font-weight:700;font-size:13px;margin:2px 0;">${escapeHtml(inspectedPuzzleDoor.name)}</div>
+        <div style="font-size:11px;color:#cbd5e1;">${escapeHtml(inspectedPuzzleDoor.summary)}</div>
+        <div style="font-family:monospace;font-size:10px;color:#38bdf8;margin-top:4px;">Grid ${escapeHtml(inspectedPuzzleDoor.grid)} · ${escapeHtml(inspectedPuzzleDoor.region)}</div>
       </div>
     `);
-    marker.addTo(layer);
+    doorMarker.addTo(layer);
 
-    if (mapRef.current) {
-      safeFlyTo(inspectedKey.x, inspectedKey.y, 17, 0.65);
+    stepsWithCoords.forEach((step) => {
+      const c = step.coords!;
+      const isFocused = inspectedPuzzleStepId === step.id;
+      const isDone = !!puzzleStepsDone[step.id];
+      const pinColor = isDone ? "#34d399" : isFocused ? "#38bdf8" : "#fbbf24";
+      const stepMarker = L.marker(toLatLng(c.x, c.y), {
+        icon: createTargetPinIcon(pinColor, `${step.order}`, isFocused),
+        zIndexOffset: isFocused ? 940 : 915,
+      });
+      stepMarker.bindPopup(`
+        <div style="min-width:210px;">
+          <div style="font-family:monospace;font-size:10px;color:${pinColor};font-weight:700;">STEP ${step.order}${step.optional ? " · OPTIONAL" : ""}${isDone ? " · DONE" : ""}</div>
+          <div style="font-weight:700;font-size:12px;margin:2px 0;">${escapeHtml(step.title)}</div>
+          <div style="font-size:11px;color:#cbd5e1;">${escapeHtml(step.detail)}</div>
+          <div style="font-family:monospace;font-size:10px;color:#94a3b8;margin-top:4px;">Grid ${escapeHtml(c.grid)}${step.locationLabel ? ` · ${escapeHtml(step.locationLabel)}` : ""}</div>
+        </div>
+      `);
+      stepMarker.addTo(layer);
+    });
+  }, [
+    inspectedKey,
+    inspectedPuzzleDoor,
+    inspectedPuzzleStepId,
+    puzzleStepsDone,
+    safeFlyTo,
+  ]);
+
+  // Fly camera only when the selected puzzle door or focused step changes (not when toggling checkboxes)
+  useEffect(() => {
+    if (!inspectedPuzzleDoor || inspectedKey || !mapRef.current) return;
+    const focusedStep = inspectedPuzzleStepId
+      ? inspectedPuzzleDoor.steps.find(
+          (s) => s.id === inspectedPuzzleStepId && s.coords !== null
+        )
+      : null;
+    if (focusedStep && focusedStep.coords) {
+      safeFlyTo(focusedStep.coords.x, focusedStep.coords.y, 17, 0.65);
+    } else {
+      safeFlyTo(inspectedPuzzleDoor.x, inspectedPuzzleDoor.y, 16.5, 0.65);
     }
-  }, [inspectedKey, safeFlyTo]);
+  }, [inspectedPuzzleDoor, inspectedPuzzleStepId, inspectedKey, safeFlyTo]);
 
   // Render Distance & Bearing Measure Line
   useEffect(() => {
@@ -1637,13 +1747,16 @@ export function TacticalMapPanel({
     [layerVisibility]
   );
 
-  // Instant Map Quick Search across Grid Coordinates, POIs, Keys, Materials, Disassembly, Tasks & Pins
+  const resolvedPuzzleDoors = useMemo(() => getResolvedPuzzleDoors(), []);
+
+  // Instant Map Quick Search across Grid Coordinates, POIs, Keys, Puzzle Doors, Materials, Disassembly, Tasks & Pins
   const mapSearchResults = useMemo(() => {
     const raw = mapSearchQuery.trim();
     if (!raw) {
       return {
         gridJump: null as ReturnType<typeof parseGridInputToMeters>,
         pois: [] as LamangPoi[],
+        puzzles: [] as ResolvedPuzzleDoor[],
         keys: [] as GzwKeyDoorDef[],
         materials: [] as CatalogMaterial[],
         disassembly: [] as DisassemblyRecipeDef[],
@@ -1666,6 +1779,19 @@ export function TacticalMapPanel({
         return aExact - bExact || a.name.localeCompare(b.name);
       })
       .slice(0, 10);
+    const puzzles = resolvedPuzzleDoors
+      .filter(
+        (d) =>
+          d.name.toLowerCase().includes(q) ||
+          d.region.toLowerCase().includes(q) ||
+          d.sublocation.toLowerCase().includes(q) ||
+          d.breachBadge.toLowerCase().includes(q) ||
+          d.requiredHackingTier.toLowerCase().includes(q) ||
+          d.linkedTasks.some((t) => t.toLowerCase().includes(q)) ||
+          d.requiredKeys.some((k) => k.toLowerCase().includes(q)) ||
+          d.steps.some((s) => s.title.toLowerCase().includes(q))
+      )
+      .slice(0, 5);
     const keys = keysList
       .filter(
         (k) =>
@@ -1704,8 +1830,8 @@ export function TacticalMapPanel({
             p.materialId.toLowerCase().includes(q))
       )
       .slice(0, 4);
-    return { gridJump, pois, keys, materials, disassembly, tasks, pins };
-  }, [mapSearchQuery, keysList, catalog, disassemblyRecipes, allTasks, customPins]);
+    return { gridJump, pois, puzzles, keys, materials, disassembly, tasks, pins };
+  }, [mapSearchQuery, resolvedPuzzleDoors, keysList, catalog, disassemblyRecipes, allTasks, customPins]);
 
   // Precomputed Zone Intel for directly clicked POIs/Compounds/COPs/LZs
   const zoneIntel = useMemo(() => {
@@ -2115,6 +2241,31 @@ export function TacticalMapPanel({
                   </div>
                 ))}
 
+                {mapSearchResults.puzzles.map((door) => (
+                  <button
+                    key={door.id}
+                    type="button"
+                    onClick={() => {
+                      setInspectedPoi(null);
+                      setMapSearchOpen(false);
+                      onSelectPuzzleDoor?.(door);
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/[0.06] flex items-center justify-between gap-2 text-xs"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-[#38bdf8] font-medium truncate">
+                        {door.name}
+                      </div>
+                      <div className="text-[11px] text-[#8392a6] truncate">
+                        Puzzle Door · {door.breachBadge} · {door.region}
+                      </div>
+                    </div>
+                    <span className="font-mono-tabular text-[10px] text-[#e5a93c] shrink-0">
+                      {door.grid}
+                    </span>
+                  </button>
+                ))}
+
                 {mapSearchResults.keys.map((k) => (
                   <button
                     key={k.id}
@@ -2252,13 +2403,14 @@ export function TacticalMapPanel({
 
                 {!mapSearchResults.gridJump &&
                   mapSearchResults.pois.length === 0 &&
+                  mapSearchResults.puzzles.length === 0 &&
                   mapSearchResults.keys.length === 0 &&
                   mapSearchResults.materials.length === 0 &&
                   mapSearchResults.disassembly.length === 0 &&
                   mapSearchResults.tasks.length === 0 &&
                   mapSearchResults.pins.length === 0 && (
                     <div className="px-2.5 py-3 text-center text-xs text-[#7f8ea1]">
-                      No locations, items, tasks, keys, or grids matched.
+                      No locations, puzzle doors, items, tasks, keys, or grids matched.
                     </div>
                   )}
               </div>
@@ -2929,6 +3081,283 @@ export function TacticalMapPanel({
           </div>
         </div>
       )}
+
+      {/* Puzzle & Multi-Step Breach Route Slide-Over Drawer */}
+      {inspectedPuzzleDoor &&
+        !inspectedKey &&
+        !inspectedMaterial &&
+        !inspectedTask && (
+          <div className="gzw-drawer-enter pointer-events-auto w-full sm:w-[390px] max-w-full max-h-[56vh] lg:max-h-[calc(100vh-210px)] overflow-y-auto rounded-xl bg-[#0e131b]/96 backdrop-blur-xl border border-[#38bdf8]/25 p-4 shadow-2xl">
+            <div className="flex items-start justify-between gap-2 pb-3 border-b border-white/[0.075]">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-medium">
+                  <span className="text-[#38bdf8]">{inspectedPuzzleDoor.region}</span>
+                  <span className="text-[#64748b]">·</span>
+                  <span className="text-[#e5a93c]">
+                    {inspectedPuzzleDoor.breachBadge}
+                  </span>
+                </div>
+                <h3 className="font-display text-base font-semibold text-[#f1f5f9] leading-snug mt-0.5">
+                  {inspectedPuzzleDoor.name}
+                </h3>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() =>
+                    lockBearingTo({
+                      x: inspectedPuzzleDoor.x,
+                      y: inspectedPuzzleDoor.y,
+                      label: inspectedPuzzleDoor.name,
+                      kind: "key",
+                    })
+                  }
+                  title="Lock compass bearing to main breach door"
+                  className="min-h-[38px] lg:min-h-0 inline-flex items-center gap-1 px-2.5 py-1.5 lg:px-2 lg:py-1 rounded-lg bg-[#e5a93c]/15 border border-[#e5a93c]/50 text-[#fde68a] hover:bg-[#e5a93c]/25 text-[11px] font-semibold shrink-0 transition-colors"
+                >
+                  <Compass className="w-3.5 h-3.5 text-[#e5a93c]" />
+                  <span>Lock</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Close puzzle breach drawer"
+                  onClick={onCloseInspectPuzzleDoor}
+                  className="min-h-[38px] min-w-[38px] lg:min-h-0 lg:min-w-0 flex items-center justify-center p-2 lg:p-1.5 rounded-lg text-[#8b98a9] hover:text-white hover:bg-white/[0.08] shrink-0 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-3 space-y-3 text-xs">
+              <div className="rounded-lg bg-[#0a0e14] border border-white/[0.06] px-2.5 py-2 space-y-1 font-mono-tabular text-[11px]">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[#8b98a9]">Primary Door</span>
+                  <span className="text-[#eef3f8] text-right">
+                    {inspectedPuzzleDoor.sublocation}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[#8b98a9]">Grid · LZ</span>
+                  <span className="text-[#38bdf8]">
+                    Grid {inspectedPuzzleDoor.grid} · {inspectedPuzzleDoor.lz}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[#8b98a9]">Hacking Requirement</span>
+                  <span className="text-[#e5a93c]">
+                    {inspectedPuzzleDoor.requiredHackingTier}
+                  </span>
+                </div>
+              </div>
+
+              {/* Power vs Hack Verdict */}
+              <div className="rounded-lg bg-[#141b26]/85 border border-[#e5a93c]/30 px-2.5 py-2 space-y-1">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#fde68a]">
+                  {inspectedPuzzleDoor.canBypassWithHack ? (
+                    <Zap className="w-3.5 h-3.5 text-[#38bdf8] shrink-0" />
+                  ) : (
+                    <ShieldAlert className="w-3.5 h-3.5 text-[#e5a93c] shrink-0" />
+                  )}
+                  <span>Power vs Hack Rule</span>
+                </div>
+                <p className="text-[11px] text-[#dce4ee] leading-relaxed">
+                  {inspectedPuzzleDoor.powerVsHackVerdict}
+                </p>
+              </div>
+
+              {/* Interactive Breach Sequence */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-semibold text-[#38bdf8]">
+                    Raid Breach Sequence
+                  </span>
+                  <span className="font-mono-tabular text-[10px] text-[#8b98a9]">
+                    {
+                      inspectedPuzzleDoor.steps.filter(
+                        (s) => puzzleStepsDone[s.id]
+                      ).length
+                    }
+                    /{inspectedPuzzleDoor.steps.length} done
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {inspectedPuzzleDoor.steps.map((step) => {
+                    const isDone = !!puzzleStepsDone[step.id];
+                    const isFocused = inspectedPuzzleStepId === step.id;
+                    return (
+                      <div
+                        key={step.id}
+                        className={`rounded-lg border px-2.5 py-2 transition-colors ${
+                          isDone
+                            ? "bg-[#112922]/55 border-[#2e7359]/70"
+                            : isFocused
+                              ? "bg-[#141b26] border-[#38bdf8]/65"
+                              : "bg-[#0a0e14] border-white/[0.065]"
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          {onTogglePuzzleStep && (
+                            <button
+                              type="button"
+                              aria-label={`Toggle step ${step.order}: ${step.title}`}
+                              onClick={() => onTogglePuzzleStep(step.id)}
+                              className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                                isDone
+                                  ? "bg-[#34d399] border-[#34d399] text-[#080b10]"
+                                  : "bg-[#0e131b] border-white/[0.18] hover:border-[#38bdf8]"
+                              }`}
+                            >
+                              {isDone && <Check className="w-3 h-3 stroke-[3]" />}
+                            </button>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="font-mono-tabular text-[10px] font-bold text-[#e5a93c]">
+                                S{step.order}
+                              </span>
+                              <span
+                                className={`font-medium leading-snug ${
+                                  isDone
+                                    ? "text-[#a7f3d0] line-through"
+                                    : "text-[#f1f5f9]"
+                                }`}
+                              >
+                                {step.title}
+                              </span>
+                              {step.optional && (
+                                <span className="text-[10px] text-[#8b98a9]">
+                                  (Optional)
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-[#b4c2d3] leading-relaxed mt-1">
+                              {step.detail}
+                            </p>
+
+                            {(step.coords || step.itemRef) && (
+                              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                                {step.coords && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        onSelectPuzzleDoor?.(
+                                          inspectedPuzzleDoor,
+                                          step.id
+                                        )
+                                      }
+                                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-[#141b26] border border-[#38bdf8]/40 text-[#7dd3fc] hover:border-[#38bdf8] text-[10px] font-medium transition-colors"
+                                    >
+                                      <MapPin className="w-3 h-3" />
+                                      <span>Grid {step.coords.grid}</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        lockBearingTo({
+                                          x: step.coords!.x,
+                                          y: step.coords!.y,
+                                          label: `S${step.order}: ${step.title}`,
+                                          kind: "key",
+                                        })
+                                      }
+                                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-[#0e131b] border border-[#e5a93c]/40 text-[#fde68a] hover:border-[#e5a93c] text-[10px] font-medium transition-colors"
+                                    >
+                                      <Compass className="w-3 h-3" />
+                                      <span>Lock</span>
+                                    </button>
+                                  </>
+                                )}
+                                {step.itemRef && onLocateRelatedItem && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      onLocateRelatedItem(step.itemRef!)
+                                    }
+                                    className="inline-flex items-center gap-1 px-2 py-1 rounded bg-[#0e131b] border border-white/[0.12] text-[#dce4ee] hover:border-[#e5a93c] text-[10px] font-medium transition-colors"
+                                  >
+                                    <KeyRound className="w-3 h-3 text-[#e5a93c]" />
+                                    <span>{step.itemRef}</span>
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Required Gear, Keys & Tasks */}
+              {(inspectedPuzzleDoor.requiredGear.length > 0 ||
+                inspectedPuzzleDoor.requiredKeys.length > 0 ||
+                inspectedPuzzleDoor.linkedTasks.length > 0) && (
+                <div className="pt-2 border-t border-white/[0.07] space-y-2">
+                  {(inspectedPuzzleDoor.requiredGear.length > 0 ||
+                    inspectedPuzzleDoor.requiredKeys.length > 0) && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {inspectedPuzzleDoor.requiredGear.map((gear) => (
+                        <button
+                          key={gear}
+                          type="button"
+                          onClick={() => onLocateRelatedItem?.(gear)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-[#141b26] border border-[#38bdf8]/40 text-[#7dd3fc] hover:border-[#38bdf8] text-[10px] font-medium"
+                        >
+                          <Cpu className="w-3 h-3" />
+                          <span>{gear}</span>
+                        </button>
+                      ))}
+                      {inspectedPuzzleDoor.requiredKeys.map((rk) => (
+                        <button
+                          key={rk}
+                          type="button"
+                          onClick={() => onLocateRelatedItem?.(rk)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-[#0a0e14] border border-[#e5a93c]/40 text-[#fde68a] hover:border-[#e5a93c] text-[10px] font-medium"
+                        >
+                          <KeyRound className="w-3 h-3" />
+                          <span>{rk}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {inspectedPuzzleDoor.linkedTasks.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {inspectedPuzzleDoor.linkedTasks.map((tName) => {
+                        const matched = allTasks.find(
+                          (t) =>
+                            t.name.trim().toLowerCase() ===
+                            tName.trim().toLowerCase()
+                        );
+                        return (
+                          <button
+                            key={tName}
+                            type="button"
+                            onClick={() => {
+                              if (matched && onSelectTask) {
+                                onCloseInspectPuzzleDoor?.();
+                                onSelectTask(matched);
+                              } else {
+                                onLocateRelatedItem?.(tName);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-[#0a0e14] border border-white/[0.1] hover:border-[#38bdf8] text-[10px] text-[#bae6fd]"
+                          >
+                            <BookOpen className="w-3 h-3 text-[#38bdf8]" />
+                            <span>Task: {tName}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       {/* Task AO & Full Walkthrough Slide-Over Drawer */}
       {inspectedTask && !inspectedMaterial && (
