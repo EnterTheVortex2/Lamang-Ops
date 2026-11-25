@@ -49,6 +49,7 @@ import {
   resolveSpawnPointsForMaterial,
   type CatalogMaterial,
 } from "../utils/catalogBuilder";
+import type { DisassemblyRecipeDef } from "../data/hideoutData";
 import type { GzwKeyDoorDef } from "../utils/keyBuilder";
 import type { GzwTaskDef } from "../utils/taskBuilder";
 import { ItemThumbnail } from "./ItemThumbnail";
@@ -88,6 +89,9 @@ interface TacticalMapPanelProps {
   onSelectKey?: (keyDef: GzwKeyDoorDef) => void;
   onCloseInspectKey?: () => void;
   onSelectMaterial?: (mat: CatalogMaterial) => void;
+  disassemblyRecipes?: DisassemblyRecipeDef[];
+  onSelectDisassembly?: (recipe: DisassemblyRecipeDef) => void;
+  onLocateRelatedItem?: (itemName: string) => void;
   completedTasks?: Record<string, boolean>;
   onToggleTaskComplete?: (taskId: string) => void;
   apiRecords: NormalizedApiRecord[];
@@ -193,6 +197,9 @@ export function TacticalMapPanel({
   onSelectKey,
   onCloseInspectKey,
   onSelectMaterial,
+  disassemblyRecipes = [],
+  onSelectDisassembly,
+  onLocateRelatedItem,
   completedTasks = {},
   onToggleTaskComplete,
   apiRecords,
@@ -397,12 +404,48 @@ export function TacticalMapPanel({
     setLayersOpen(false);
   };
 
-  const fitIslandView = () => {
-    mapRef.current?.fitBounds(
-      L.latLngBounds(toLatLng(2800, 850), toLatLng(11200, 7300)),
-      { animate: true }
-    );
-  };
+  const safeFlyTo = useCallback(
+    (x: number, y: number, zoom = 16, duration = 0.65) => {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      const attempt = (retriesLeft: number) => {
+        const m = mapRef.current;
+        const el = mapContainerRef.current;
+        if (!m || !el) return;
+        if (el.clientWidth > 0 && el.clientHeight > 0) {
+          m.invalidateSize({ animate: false });
+          const target = toLatLng(x, y);
+          const cur = m.getCenter();
+          if (!Number.isFinite(cur.lat) || !Number.isFinite(cur.lng)) {
+            m.setView(target, zoom, { animate: false });
+          } else {
+            m.flyTo(target, zoom, { duration });
+          }
+        } else if (retriesLeft > 0) {
+          requestAnimationFrame(() => attempt(retriesLeft - 1));
+        }
+      };
+      attempt(6);
+    },
+    []
+  );
+
+  const fitIslandView = useCallback(() => {
+    const attempt = (retriesLeft: number) => {
+      const m = mapRef.current;
+      const el = mapContainerRef.current;
+      if (!m || !el) return;
+      if (el.clientWidth > 0 && el.clientHeight > 0) {
+        m.invalidateSize({ animate: false });
+        m.fitBounds(
+          L.latLngBounds(toLatLng(2800, 850), toLatLng(11200, 7300)),
+          { animate: true }
+        );
+      } else if (retriesLeft > 0) {
+        requestAnimationFrame(() => attempt(retriesLeft - 1));
+      }
+    };
+    attempt(6);
+  }, []);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -592,14 +635,15 @@ export function TacticalMapPanel({
 
   // Keep Leaflet sizing accurate when switching mobile views, Glance Mode, or dragging split divider
   useEffect(() => {
-    const raf = requestAnimationFrame(() => {
-      mapRef.current?.invalidateSize({ animate: false });
+    const syncIfVisible = () => {
+      const m = mapRef.current;
+      const el = mapContainerRef.current;
+      if (!m || !el || el.clientWidth <= 0 || el.clientHeight <= 0) return;
+      m.invalidateSize({ animate: false });
       setViewportVersion((v) => v + 1);
-    });
-    const t = setTimeout(() => {
-      mapRef.current?.invalidateSize({ animate: false });
-      setViewportVersion((v) => v + 1);
-    }, 140);
+    };
+    const raf = requestAnimationFrame(syncIfVisible);
+    const t = setTimeout(syncIfVisible, 140);
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(t);
@@ -819,9 +863,9 @@ export function TacticalMapPanel({
   useEffect(() => {
     if (inspectedMaterial && inspectedSpawnPoints.length > 0 && mapRef.current) {
       const first = inspectedSpawnPoints[0];
-      mapRef.current.flyTo(toLatLng(first.x, first.y), 16, { duration: 0.65 });
+      safeFlyTo(first.x, first.y, 16, 0.65);
     }
-  }, [inspectedMaterial, inspectedSpawnPoints]);
+  }, [inspectedMaterial, inspectedSpawnPoints, safeFlyTo]);
 
   // Render & fly to inspected Vendor Task POIs + exact Grid waypoints
   useEffect(() => {
@@ -865,7 +909,7 @@ export function TacticalMapPanel({
     if (mapRef.current) {
       if (inspectedTask.exactCoords.length > 0) {
         const firstCoord = inspectedTask.exactCoords[0];
-        mapRef.current.flyTo(toLatLng(firstCoord.x, firstCoord.y), 16.5, { duration: 0.65 });
+        safeFlyTo(firstCoord.x, firstCoord.y, 16.5, 0.65);
       } else if (inspectedTask.matchedPois.length > 0) {
         const starterTown =
           selectedFaction !== "ALL"
@@ -878,12 +922,12 @@ export function TacticalMapPanel({
                 p.name === starterTown || p.parentRegion === starterTown
             )) ||
           inspectedTask.matchedPois[0];
-        mapRef.current.flyTo(toLatLng(preferred.x, preferred.y), 16, { duration: 0.65 });
+        safeFlyTo(preferred.x, preferred.y, 16, 0.65);
       } else {
         fitIslandView();
       }
     }
-  }, [inspectedTask, selectedFaction]);
+  }, [inspectedTask, selectedFaction, safeFlyTo, fitIslandView]);
 
   // Render & fly to inspected Key / Locked Door
   useEffect(() => {
@@ -910,11 +954,9 @@ export function TacticalMapPanel({
     marker.addTo(layer);
 
     if (mapRef.current) {
-      mapRef.current.flyTo(toLatLng(inspectedKey.x, inspectedKey.y), 17, {
-        duration: 0.65,
-      });
+      safeFlyTo(inspectedKey.x, inspectedKey.y, 17, 0.65);
     }
-  }, [inspectedKey]);
+  }, [inspectedKey, safeFlyTo]);
 
   // Render Distance & Bearing Measure Line
   useEffect(() => {
@@ -1595,10 +1637,20 @@ export function TacticalMapPanel({
     [layerVisibility]
   );
 
-  // Instant Map Quick Search across Grid Coordinates, POIs, COPs, LZs & Keys
+  // Instant Map Quick Search across Grid Coordinates, POIs, Keys, Materials, Disassembly, Tasks & Pins
   const mapSearchResults = useMemo(() => {
     const raw = mapSearchQuery.trim();
-    if (!raw) return { gridJump: null as ReturnType<typeof parseGridInputToMeters>, pois: [] as LamangPoi[], keys: [] as GzwKeyDoorDef[] };
+    if (!raw) {
+      return {
+        gridJump: null as ReturnType<typeof parseGridInputToMeters>,
+        pois: [] as LamangPoi[],
+        keys: [] as GzwKeyDoorDef[],
+        materials: [] as CatalogMaterial[],
+        disassembly: [] as DisassemblyRecipeDef[],
+        tasks: [] as GzwTaskDef[],
+        pins: [] as CustomMapPin[],
+      };
+    }
     const gridJump = parseGridInputToMeters(raw);
     const q = raw.toLowerCase();
     const pois = LAMANG_POIS.filter(
@@ -1613,7 +1665,7 @@ export function TacticalMapPanel({
         const bExact = b.name.toLowerCase().startsWith(q) ? 0 : 1;
         return aExact - bExact || a.name.localeCompare(b.name);
       })
-      .slice(0, 15);
+      .slice(0, 10);
     const keys = keysList
       .filter(
         (k) =>
@@ -1622,8 +1674,38 @@ export function TacticalMapPanel({
           k.region.toLowerCase().includes(q)
       )
       .slice(0, 5);
-    return { gridJump, pois, keys };
-  }, [mapSearchQuery, keysList]);
+    const materials = catalog
+      .filter(
+        (m) =>
+          m.name.toLowerCase().includes(q) ||
+          m.dataset.toLowerCase().includes(q)
+      )
+      .slice(0, 5);
+    const disassembly = disassemblyRecipes
+      .filter(
+        (d) =>
+          d.name.toLowerCase().includes(q) ||
+          d.outcomes.some((o) => o.toLowerCase().includes(q))
+      )
+      .slice(0, 4);
+    const tasks = allTasks
+      .filter(
+        (t) =>
+          t.name.toLowerCase().includes(q) ||
+          t.vendor.toLowerCase().includes(q) ||
+          t.areas.some((a) => a.toLowerCase().includes(q))
+      )
+      .slice(0, 5);
+    const pins = customPins
+      .filter(
+        (p) =>
+          !p.id.startsWith("seed-") &&
+          (p.label.toLowerCase().includes(q) ||
+            p.materialId.toLowerCase().includes(q))
+      )
+      .slice(0, 4);
+    return { gridJump, pois, keys, materials, disassembly, tasks, pins };
+  }, [mapSearchQuery, keysList, catalog, disassemblyRecipes, allTasks, customPins]);
 
   // Precomputed Zone Intel for directly clicked POIs/Compounds/COPs/LZs
   const zoneIntel = useMemo(() => {
@@ -1888,8 +1970,8 @@ export function TacticalMapPanel({
       {/* Floating Map Toolbar + Flowing Left/Right Drawers */}
       <div className="absolute top-2.5 left-2.5 right-2.5 z-[725] flex flex-col gap-2 pointer-events-none">
         {/* Compact Single-Row Floating Map Controls */}
-        <div className="flex items-center justify-between gap-1.5 flex-wrap lg:flex-nowrap relative z-[740]">
-          <div className="pointer-events-auto flex items-center gap-1 relative flex-wrap lg:flex-nowrap min-w-0">
+        <div className="flex items-center justify-between gap-1.5 flex-wrap relative z-[740]">
+          <div className="pointer-events-auto flex items-center gap-1 relative flex-wrap min-w-0">
             {/* Quick Search (POIs, LZs, Keys, Grid 171 152) */}
             <div className="relative">
               <div className="relative flex items-center">
@@ -1918,10 +2000,10 @@ export function TacticalMapPanel({
                       onNotify(`Jumped to Grid ${g.grid}`);
                     }
                   }}
-                  placeholder="Search POI, grid, key (/)"
-                  title="Search locations, keys, or grid coordinates (/)"
-                  aria-label="Search map locations or grid"
-                  className="min-h-[42px] lg:min-h-[36px] w-36 sm:w-44 xl:w-48 2xl:w-52 pl-8 pr-6 py-1.5 rounded-xl lg:rounded-lg bg-[#0e131b]/94 backdrop-blur-xl border border-white/[0.11] focus:border-[#38bdf8] text-xs text-[#eef3f8] placeholder:text-[#7a899c] shadow-xl focus:outline-none transition-colors"
+                  placeholder="Search POI, item, key, grid (/)"
+                  title="Search locations, items, tasks, keys, or grid coordinates (/)"
+                  aria-label="Search map locations, items, keys, or grid"
+                  className="min-h-[42px] lg:min-h-[36px] w-36 sm:w-44 lg:w-48 2xl:w-56 pl-8 pr-6 py-1.5 rounded-xl lg:rounded-lg bg-[#0e131b]/94 backdrop-blur-xl border border-white/[0.11] focus:border-[#38bdf8] text-xs text-[#eef3f8] placeholder:text-[#7a899c] shadow-xl focus:outline-none transition-colors"
                 />
               {mapSearchQuery && (
                 <button
@@ -1939,7 +2021,7 @@ export function TacticalMapPanel({
             </div>
 
             {mapSearchOpen && mapSearchQuery.trim() && (
-              <div className="gzw-popover-enter absolute top-full left-0 mt-1.5 w-76 max-h-80 overflow-y-auto rounded-xl bg-[#0e131b]/96 backdrop-blur-xl border border-white/[0.12] p-1.5 shadow-2xl z-[810] space-y-1">
+              <div className="gzw-popover-enter absolute top-full left-0 mt-1.5 w-80 max-w-[calc(100vw-24px)] max-h-88 overflow-y-auto rounded-xl bg-[#0e131b]/96 backdrop-blur-xl border border-white/[0.12] p-1.5 shadow-2xl z-[810] space-y-1">
                 {mapSearchResults.gridJump && (
                   <div className="flex items-center gap-1 rounded-lg bg-[#141b26] p-1">
                     <button
@@ -2049,7 +2131,7 @@ export function TacticalMapPanel({
                         {k.name}
                       </div>
                       <div className="text-[11px] text-[#8392a6] truncate">
-                        {k.doorTarget} · {k.region}
+                        Key · {k.doorTarget} · {k.region}
                       </div>
                     </div>
                     <span className="font-mono-tabular text-[10px] text-[#38bdf8] shrink-0">
@@ -2058,11 +2140,125 @@ export function TacticalMapPanel({
                   </button>
                 ))}
 
+                {mapSearchResults.materials.map((m) => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => {
+                      setInspectedPoi(null);
+                      setMapSearchOpen(false);
+                      onSelectMaterial?.(m);
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/[0.06] flex items-center justify-between gap-2 text-xs"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-[#eef3f8] font-medium truncate">
+                        {m.name}
+                      </div>
+                      <div className="text-[11px] text-[#8392a6] truncate">
+                        Material · {m.dataset}
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-medium text-[#e5a93c] shrink-0">
+                      Locate
+                    </span>
+                  </button>
+                ))}
+
+                {mapSearchResults.disassembly.map((d) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => {
+                      setInspectedPoi(null);
+                      setMapSearchOpen(false);
+                      onSelectDisassembly?.(d);
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/[0.06] flex items-center justify-between gap-2 text-xs"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-[#fed7aa] font-medium truncate">
+                        {d.name}
+                      </div>
+                      <div className="text-[11px] text-[#8392a6] truncate">
+                        Disassembly → {d.outcomes.slice(0, 2).join(", ")}
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-medium text-[#fb923c] shrink-0">
+                      Spawns
+                    </span>
+                  </button>
+                ))}
+
+                {mapSearchResults.tasks.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => {
+                      setInspectedPoi(null);
+                      setMapSearchOpen(false);
+                      onSelectTask?.(t);
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/[0.06] flex items-center justify-between gap-2 text-xs"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-[#bae6fd] font-medium truncate">
+                        {t.name}
+                      </div>
+                      <div className="text-[11px] text-[#8392a6] truncate">
+                        Task · {t.vendor}
+                        {t.areas.length ? ` · ${t.areas[0]}` : ""}
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-medium text-[#38bdf8] shrink-0">
+                      Briefing
+                    </span>
+                  </button>
+                ))}
+
+                {mapSearchResults.pins.map((pin) => (
+                  <button
+                    key={pin.id}
+                    type="button"
+                    onClick={() => {
+                      setMapSearchOpen(false);
+                      mapRef.current?.flyTo(toLatLng(pin.x, pin.y), 16.5, {
+                        duration: 0.65,
+                      });
+                      onNotify(
+                        `Centered on ${pin.label} · Grid ${formatGridSquare(pin.x, pin.y)}`
+                      );
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/[0.06] flex items-center justify-between gap-2 text-xs"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-[#6ee7b7] font-medium truncate">
+                        {pin.label}
+                      </div>
+                      <div className="text-[11px] text-[#8392a6] truncate">
+                        Custom Pin ·{" "}
+                        {pin.layer === "blueCrates"
+                          ? "Blue Crate"
+                          : pin.layer === "pcSpawns"
+                            ? "PC / Electronic"
+                            : "Recon"}
+                      </div>
+                    </div>
+                    <span className="font-mono-tabular text-[10px] text-[#34d399] shrink-0">
+                      {formatGridSquare(pin.x, pin.y)}
+                    </span>
+                  </button>
+                ))}
+
                 {!mapSearchResults.gridJump &&
                   mapSearchResults.pois.length === 0 &&
-                  mapSearchResults.keys.length === 0 && (
+                  mapSearchResults.keys.length === 0 &&
+                  mapSearchResults.materials.length === 0 &&
+                  mapSearchResults.disassembly.length === 0 &&
+                  mapSearchResults.tasks.length === 0 &&
+                  mapSearchResults.pins.length === 0 && (
                     <div className="px-2.5 py-3 text-center text-xs text-[#7f8ea1]">
-                      No locations, keys, or grids matched.
+                      No locations, items, tasks, keys, or grids matched.
                     </div>
                   )}
               </div>
@@ -2083,7 +2279,7 @@ export function TacticalMapPanel({
                 className="min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl lg:rounded-lg bg-[#0e131b]/94 backdrop-blur-xl border border-white/[0.11] hover:border-white/[0.22] text-xs font-medium text-[#e2e9f2] shadow-xl transition-colors whitespace-nowrap"
               >
                 <Navigation className="w-3.5 h-3.5 text-[#e5a93c]" />
-                <span className="hidden xl:inline">Regions</span>
+                <span className="hidden lg:inline">Regions</span>
                 <ChevronDown className="w-3 h-3 text-[#7f8ea1]" />
               </button>
 
@@ -2150,7 +2346,7 @@ export function TacticalMapPanel({
             }`}
           >
             <Grid3X3 className="w-3.5 h-3.5" />
-            <span className="hidden 2xl:inline">Grid</span>
+            <span className="hidden lg:inline">Grid</span>
           </button>
 
           {/* Compact Layers Popover */}
@@ -2166,7 +2362,7 @@ export function TacticalMapPanel({
               className="min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl lg:rounded-lg bg-[#0e131b]/94 backdrop-blur-xl border border-white/[0.11] hover:border-white/[0.22] text-xs font-medium text-[#e2e9f2] shadow-xl transition-colors whitespace-nowrap"
             >
               <Layers className="w-3.5 h-3.5 text-[#38bdf8]" />
-              <span className="hidden xl:inline">Layers</span>
+              <span className="hidden lg:inline">Layers</span>
               <span className="font-mono-tabular text-[11px] text-[#8b98a9]">
                 {activeLayerCount}
               </span>
@@ -2216,7 +2412,7 @@ export function TacticalMapPanel({
         </div>
 
         {/* Top-Right Monitor 2 Tools: Glance Mode, Measure, Drop Pin, My Pins, Reset View */}
-        <div className="pointer-events-auto flex items-center gap-1 flex-wrap lg:flex-nowrap justify-end shrink-0">
+        <div className="pointer-events-auto flex items-center gap-1 flex-wrap justify-end shrink-0 ml-auto">
 
           {/* Glance Mode Toggle (Monitor 2 Fullscreen Intel) */}
           {onToggleGlanceMode && (
@@ -2224,14 +2420,14 @@ export function TacticalMapPanel({
               type="button"
               onClick={() => onToggleGlanceMode(!glanceMode)}
               title="Toggle Glance Mode — fullscreen map & oversized bearing HUD for Monitor 2"
-              className={`hidden sm:inline-flex min-h-[36px] items-center gap-1 px-2 xl:px-2.5 py-1 rounded-lg text-xs font-medium backdrop-blur-xl shadow-xl transition-colors whitespace-nowrap shrink-0 ${
+              className={`hidden sm:inline-flex min-h-[36px] items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium backdrop-blur-xl shadow-xl transition-colors whitespace-nowrap shrink-0 ${
                 glanceMode
                   ? "bg-[#e5a93c]/25 border border-[#e5a93c] text-[#fde68a]"
                   : "bg-[#0e131b]/94 border border-white/[0.11] text-[#e2e9f2] hover:border-white/[0.22]"
               }`}
             >
               <Eye className="w-3.5 h-3.5 text-[#e5a93c]" />
-              <span className="hidden xl:inline">
+              <span className="hidden lg:inline">
                 {glanceMode ? "Glance On" : "Glance"}
               </span>
             </button>
@@ -2260,7 +2456,7 @@ export function TacticalMapPanel({
                 }`}
               >
                 <Ruler className="w-3.5 h-3.5" />
-                <span className="hidden 2xl:inline">
+                <span className="hidden lg:inline">
                   {measureMode ? "Measuring" : "Measure"}
                 </span>
               </button>
@@ -2283,7 +2479,7 @@ export function TacticalMapPanel({
                 }`}
               >
                 <Crosshair className="w-3.5 h-3.5" />
-                <span className="hidden xl:inline">{pinDropMode ? "Placing" : "Pin"}</span>
+                <span className="hidden lg:inline">{pinDropMode ? "Placing" : "Pin"}</span>
               </button>
 
               <button
@@ -2303,7 +2499,7 @@ export function TacticalMapPanel({
                 }`}
               >
                 <Bookmark className="w-3.5 h-3.5 text-[#34d399]" />
-                <span className="hidden 2xl:inline">My Pins</span>
+                <span className="hidden lg:inline">My Pins</span>
                 <span
                   className={`font-mono-tabular text-[11px] px-1.5 py-0.5 rounded-md ${
                     userDroppedPins.length > 0
@@ -2324,7 +2520,7 @@ export function TacticalMapPanel({
             className="min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl lg:rounded-lg text-xs font-medium bg-[#0e131b]/94 backdrop-blur-xl border border-white/[0.11] text-[#e2e9f2] hover:border-white/[0.22] shadow-xl transition-colors whitespace-nowrap shrink-0"
           >
             <LocateFixed className="w-3.5 h-3.5" />
-            <span className="hidden 2xl:inline">Reset</span>
+            <span className="hidden lg:inline">Reset</span>
           </button>
         </div>
         </div>
@@ -3001,9 +3197,11 @@ export function TacticalMapPanel({
                 </div>
                 <div className="space-y-1.5">
                   {inspectedTask.relatedItems.map((item, idx) => (
-                    <div
+                    <button
                       key={`${item.name}-${idx}`}
-                      className="flex items-center gap-2.5 rounded-lg bg-[#0a0e14] border border-white/[0.06] px-2.5 py-1.5"
+                      type="button"
+                      onClick={() => onLocateRelatedItem?.(item.name)}
+                      className="w-full text-left flex items-center gap-2.5 rounded-lg bg-[#0a0e14] border border-white/[0.06] hover:border-[#38bdf8] px-2.5 py-1.5 transition-colors group"
                     >
                       <ItemThumbnail
                         src={item.image}
@@ -3012,11 +3210,12 @@ export function TacticalMapPanel({
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium text-[#eef3f8] truncate">
+                          <span className="font-medium text-[#eef3f8] group-hover:text-[#7dd3fc] truncate">
                             {item.name}
                           </span>
-                          <span className="text-[10px] font-medium text-[#38bdf8] shrink-0">
-                            {item.kind}
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[#38bdf8] shrink-0">
+                            <MapPin className="w-3 h-3" />
+                            <span>{item.kind}</span>
                           </span>
                         </div>
                         {item.note && (
@@ -3025,7 +3224,7 @@ export function TacticalMapPanel({
                           </div>
                         )}
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>

@@ -518,6 +518,67 @@ const CRATE_LOOT_MATERIALS = new Set([
   "silicone sealant",
 ]);
 
+export function findDisassemblyRecipeForItemOrYield(
+  itemName: string
+): { recipe: DisassemblyRecipeDef; matchedAs: "source" | "yield" } | null {
+  const norm = itemName.trim().toLowerCase();
+  if (!norm) return null;
+  for (const rec of FALLBACK_DISASSEMBLY_RECIPES) {
+    if (rec.name.trim().toLowerCase() === norm) {
+      return { recipe: rec, matchedAs: "source" };
+    }
+  }
+  for (const rec of FALLBACK_DISASSEMBLY_RECIPES) {
+    if (
+      rec.outcomes.some((o) => o.trim().toLowerCase() === norm) ||
+      rec.outcomeDetails.some((d) => d.name.trim().toLowerCase() === norm)
+    ) {
+      return { recipe: rec, matchedAs: "yield" };
+    }
+  }
+  return null;
+}
+
+export function buildYieldCatalogMaterial(
+  yieldName: string,
+  recipe: DisassemblyRecipeDef
+): CatalogMaterial {
+  const detail = recipe.outcomeDetails.find(
+    (d) => d.name.trim().toLowerCase() === yieldName.trim().toLowerCase()
+  );
+  const spawnSummary = getDisassemblySpawnSummary(recipe.name);
+  const slug = yieldName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_");
+  const spawnNotes: string[] = [
+    `Obtained by disassembling ${recipe.name} (${recipe.duration}) at ${recipe.station}`,
+  ];
+  if (spawnSummary.pois.length > 0) {
+    spawnNotes.push(
+      `${recipe.name} spawns (${spawnSummary.count}) in ${spawnSummary.pois.join(", ")}`
+    );
+  }
+
+  return {
+    key: `yield_${slug}`,
+    id: `yield_${slug}`,
+    name: yieldName,
+    room: recipe.category === "Containers & Chem" ? "laboratory" : "electronics",
+    dataset: "Disassembly Yield",
+    required: 1,
+    tiersUsed: [],
+    layerHint: "disassemblySpawns",
+    image: resolveTacticalImageUrl(detail?.image || recipe.image, yieldName),
+    description: `${detail?.kind || "Salvaged Output"} obtained from disassembling ${recipe.name} (${recipe.duration}).${
+      detail?.sellPrice ? ` Sell value: ${detail.sellPrice}.` : ""
+    }`,
+    weight: detail?.weight,
+    gridSize: detail?.gridSize,
+    sellPrice: detail?.sellPrice,
+    spawnNotes,
+    usedInUpgrades: [],
+    apiCoords: [],
+  };
+}
+
 export function resolveSpawnPointsForMaterial(
   mat: CatalogMaterial,
   customPins: CustomMapPin[],
@@ -557,14 +618,25 @@ export function resolveSpawnPointsForMaterial(
     .join(" ")
     .toLowerCase();
 
-  // Direct Disassembly Item matches
+  // Direct Disassembly Item matches (source item OR yielded material/drive/canister)
+  const disassemblyMatch = findDisassemblyRecipeForItemOrYield(mat.name);
   for (const dis of DISASSEMBLY_SPAWNS_05) {
-    if (textBlob.includes(dis.name.toLowerCase())) {
+    const disLower = dis.name.toLowerCase();
+    if (
+      textBlob.includes(disLower) ||
+      (disassemblyMatch && disassemblyMatch.recipe.name.toLowerCase() === disLower)
+    ) {
       points.push({
         x: dis.x,
         y: dis.y,
-        title: `${dis.poi} · ${dis.name}`,
-        source: "Disassembly Spawn",
+        title:
+          disassemblyMatch?.matchedAs === "yield"
+            ? `${dis.poi} · Disassemble ${dis.name}`
+            : `${dis.poi} · ${dis.name}`,
+        source:
+          disassemblyMatch?.matchedAs === "yield"
+            ? `Disassembles into ${mat.name}`
+            : "Disassembly Spawn",
         kind: "disassembly",
       });
     }
@@ -657,6 +729,90 @@ export function resolveSpawnPointsForMaterial(
         kind: "crate",
       });
       if (seenRegions.size >= 10) break;
+    }
+  }
+
+  // Smart Category / Dataset Fallback for general API Item Index records so no item ever has 0 map targets
+  if (points.length === 0) {
+    const hintText = `${mat.dataset} ${mat.name} ${mat.description} ${extraLootNotes.join(" ")}`.toLowerCase();
+
+    if (
+      /medical|medkit|surgical|suture|splint|bandage|tourniquet|injector|stim|blood|painkiller|antidote|provisions|ration/.test(
+        hintText
+      )
+    ) {
+      for (const med of MEDICAL_AREAS_05) {
+        points.push({
+          x: med.x,
+          y: med.y,
+          title: `${med.poi} · ${med.name}`,
+          source: "Medical Supplies Area",
+          tier: med.poi === "Fort Narith" || med.poi === "Tiger Bay" ? "Tier 3" : "Tier 4",
+          kind: "medical",
+        });
+      }
+    } else if (/chemical|biohazard|canister|reagent|acid|toxic|lab/.test(hintText)) {
+      for (const chem of CHEMICAL_AREAS_05.slice(0, 10)) {
+        points.push({
+          x: chem.x,
+          y: chem.y,
+          title: `${chem.poi} · ${chem.name}`,
+          source: "Chemicals Supplies Area",
+          kind: "chemicals",
+        });
+      }
+    } else if (
+      /electronic|radio|circuit|computer|server|processor|asic|fpga|oscillator|sensor|nvg|night vision|laser|optic|scope|holosight|drive|intel/.test(
+        hintText
+      )
+    ) {
+      for (const elec of ELECTRONIC_AREAS_05.slice(0, 12)) {
+        points.push({
+          x: elec.x,
+          y: elec.y,
+          title: `${elec.poi} · ${elec.name}`,
+          source: "Electronic Supplies Area",
+          kind: "electronics",
+        });
+      }
+    } else if (
+      /tool|building|workshop|construction|industrial|hardware|craft|production|supply|material|crate/.test(
+        hintText
+      )
+    ) {
+      const seenRegions = new Set<string>();
+      for (const crate of BLUE_CRATES_05) {
+        if (seenRegions.has(crate.poi)) continue;
+        seenRegions.add(crate.poi);
+        points.push({
+          x: crate.x,
+          y: crate.y,
+          title: `${crate.poi} · ${crate.name}`,
+          tier: crate.tier ? `Crate Lv.${crate.tier}` : undefined,
+          source: "Supply Crate Region",
+          kind: "crate",
+        });
+        if (seenRegions.size >= 8) break;
+      }
+    } else {
+      // Tactical gear / firearms / ammo / valuables -> Primary Tier 3-4 Military & High-Loot POIs
+      const militaryHighTier = LAMANG_POIS.filter(
+        (p) =>
+          (p.kind === "tier4" || p.kind === "major") &&
+          (p.tier === "Tier 4" || p.tier === "Tier 3") &&
+          p.id !== "poi-ground-zero"
+      ).slice(0, 8);
+      for (const poi of militaryHighTier) {
+        points.push({
+          x: poi.x,
+          y: poi.y,
+          title: poi.name,
+          tier: poi.tier,
+          lz: poi.lz,
+          source: "Military & High-Tier Loot Zone",
+          kind: poi.kind,
+        });
+      }
     }
   }
 

@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import {
   Check,
-  ClipboardList,
   Clock,
   Cpu,
   Crosshair,
@@ -52,6 +51,7 @@ interface HideoutTrackerPanelProps {
   selectedMaterialKey: string | null;
   onInspectMaterial: (mat: CatalogMaterial) => void;
   onInspectDisassemblyItem: (recipe: DisassemblyRecipeDef) => void;
+  onLocateOutcome?: (outcomeName: string) => void;
   onInspectApiRecord: (rec: NormalizedApiRecord) => void;
   onArmPinDrop: (matId: string) => void;
   catalog: CatalogMaterial[];
@@ -81,6 +81,7 @@ export function HideoutTrackerPanel({
   selectedMaterialKey,
   onInspectMaterial,
   onInspectDisassemblyItem,
+  onLocateOutcome,
   onInspectApiRecord,
   onArmPinDrop,
   catalog,
@@ -253,45 +254,17 @@ export function HideoutTrackerPanel({
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-[#0e131b]">
       {/* Hideout Controls & Navigation */}
-      <div className="px-4 py-3.5 border-b border-white/[0.075] bg-[#0e131b] space-y-3 shrink-0">
-        {/* Search Input + Quick Supply List Action */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <div className="relative flex-1 min-w-0">
-            <Search className="w-4 h-4 text-[#7b8ca1] absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={
-                activeView === "disassembly"
-                  ? "Search disassembly item or yielded material..."
-                  : "Search upgrade or material..."
-              }
-              className="w-full min-h-[44px] lg:min-h-[38px] bg-[#0a0e14] border border-white/[0.08] rounded-xl pl-9 pr-3 py-2 text-sm lg:text-[13px] text-[#f1f5f9] placeholder:text-[#66778b] focus:outline-none focus:border-[#e5a93c] transition-colors"
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onViewChange("manifest")}
-            className={`min-h-[44px] lg:min-h-[38px] inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
-              activeView === "manifest"
-                ? "bg-[#f0b94d] text-[#080b10]"
-                : "bg-[#e5a93c] hover:bg-[#f0b94d] text-[#080b10]"
-            }`}
-          >
-            <ClipboardList className="w-4 h-4" />
-            <span>Supply List ({supplyManifest.rows.filter((r) => r.toFind > 0).length})</span>
-          </button>
-        </div>
-
-        {/* Sub-view Switcher Tabs (2x2 on narrow mobile, 4-col on sm+) */}
+      <div className="px-4 py-3 border-b border-white/[0.075] bg-[#0e131b] space-y-2.5 shrink-0">
+        {/* Sub-view Switcher Tabs */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl bg-[#0a0e14] border border-white/[0.07] p-1">
           {(
             [
-              { id: "planner", label: "Upgrades" },
-              { id: "manifest", label: `Needed (${plannedCount})` },
-              { id: "disassembly", label: "Disassembly" },
+              { id: "planner", label: `Upgrades (${builtCount}/${allUpgrades.length})` },
+              {
+                id: "manifest",
+                label: `Supply List (${supplyManifest.rows.filter((r) => r.toFind > 0).length})`,
+              },
+              { id: "disassembly", label: `Disassembly (${disassemblyRecipes.length})` },
               { id: "api-search", label: "Item Index" },
             ] as { id: PlannerViewId; label: string }[]
           ).map((tab) => {
@@ -301,7 +274,7 @@ export function HideoutTrackerPanel({
                 key={tab.id}
                 type="button"
                 onClick={() => onViewChange(tab.id)}
-                className={`min-h-[42px] lg:min-h-[34px] px-2 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap text-center ${
+                className={`min-h-[40px] lg:min-h-[34px] px-2 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap text-center truncate ${
                   active
                     ? "bg-[#141b26] text-[#f8fafc] shadow-sm ring-1 ring-white/[0.08]"
                     : "text-[#94a3b8] hover:text-[#e2e8f0]"
@@ -312,6 +285,24 @@ export function HideoutTrackerPanel({
             );
           })}
         </div>
+
+        {/* Search Input (for Upgrades & Disassembly views) */}
+        {(activeView === "planner" || activeView === "disassembly") && (
+          <div className="relative min-w-0">
+            <Search className="w-4 h-4 text-[#7b8ca1] absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={
+                activeView === "disassembly"
+                  ? "Search disassembly item, location, or yielded material..."
+                  : "Search upgrade module, benefit, or required material..."
+              }
+              className="w-full min-h-[42px] lg:min-h-[36px] bg-[#0a0e14] border border-white/[0.08] rounded-xl pl-9 pr-3 py-1.5 text-sm lg:text-[13px] text-[#f1f5f9] placeholder:text-[#66778b] focus:outline-none focus:border-[#e5a93c] transition-colors"
+            />
+          </div>
+        )}
 
         {/* Filters for Upgrade Planner */}
         {activeView === "planner" && (
@@ -1019,15 +1010,22 @@ export function HideoutTrackerPanel({
                             )}
                           </div>
 
-                          {/* Yielded Materials List */}
+                          {/* Yielded Materials List (Clickable to locate source spawns) */}
                           <div className="space-y-1.5">
                             <div className="text-[11px] font-medium text-[#8fa1b6]">
                               Breaks down into ({outcomeDetails.length})
                             </div>
                             {outcomeDetails.map((out, idx) => (
-                              <div
+                              <button
                                 key={`${rec.id}-${idx}`}
-                                className="flex items-center justify-between gap-2.5 rounded-lg bg-[#0a0e14] border border-white/[0.065] px-2.5 py-2"
+                                type="button"
+                                onClick={() =>
+                                  onLocateOutcome
+                                    ? onLocateOutcome(out.name)
+                                    : onInspectDisassemblyItem(rec)
+                                }
+                                title={`Locate spawns yielding ${out.name}`}
+                                className="w-full text-left flex items-center justify-between gap-2.5 rounded-lg bg-[#0a0e14] border border-white/[0.065] hover:border-[#38bdf8]/55 px-2.5 py-2 transition-colors group"
                               >
                                 <div className="flex items-center gap-2.5 min-w-0">
                                   {out.image ? (
@@ -1042,7 +1040,7 @@ export function HideoutTrackerPanel({
                                     </div>
                                   )}
                                   <div className="min-w-0">
-                                    <div className="text-xs font-medium text-[#e6edf5] truncate">
+                                    <div className="text-xs font-medium text-[#e6edf5] group-hover:text-[#7dd3fc] truncate transition-colors">
                                       {out.name}
                                     </div>
                                     <div className="text-[10.5px] text-[#7f8ea1] truncate">
@@ -1053,12 +1051,15 @@ export function HideoutTrackerPanel({
                                   </div>
                                 </div>
 
-                                {out.sellPrice && (
-                                  <span className="font-mono-tabular text-[11px] font-semibold text-[#34d399] shrink-0">
-                                    {out.sellPrice}
-                                  </span>
-                                )}
-                              </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {out.sellPrice && (
+                                    <span className="font-mono-tabular text-[11px] font-semibold text-[#34d399]">
+                                      {out.sellPrice}
+                                    </span>
+                                  )}
+                                  <MapPin className="w-3.5 h-3.5 text-[#64748b] group-hover:text-[#38bdf8] transition-colors" />
+                                </div>
+                              </button>
                             ))}
                           </div>
                         </div>
@@ -1070,16 +1071,18 @@ export function HideoutTrackerPanel({
                               ? `Spawns: ${spawnInfo.pois.join(", ")}`
                               : rec.station}
                           </div>
-                          {spawnInfo.count > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => onInspectDisassemblyItem(rec)}
-                              className="min-h-[44px] lg:min-h-[34px] inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0a0e14] hover:bg-[#101824] border border-white/[0.1] hover:border-[#38bdf8] text-[#38bdf8] hover:text-[#7dd3fc] text-xs font-medium whitespace-nowrap transition-colors shrink-0"
-                            >
-                              <MapPin className="w-3.5 h-3.5" />
-                              <span>Locate Spawns ({spawnInfo.count})</span>
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => onInspectDisassemblyItem(rec)}
+                            className="min-h-[42px] lg:min-h-[34px] inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0a0e14] hover:bg-[#101824] border border-white/[0.1] hover:border-[#38bdf8] text-[#38bdf8] hover:text-[#7dd3fc] text-xs font-medium whitespace-nowrap transition-colors shrink-0"
+                          >
+                            <MapPin className="w-3.5 h-3.5" />
+                            <span>
+                              {spawnInfo.count > 0
+                                ? `Locate Spawns (${spawnInfo.count})`
+                                : "Spawn Intel"}
+                            </span>
+                          </button>
                         </div>
                       </div>
                     );
@@ -1149,14 +1152,39 @@ export function HideoutTrackerPanel({
                         {ds.replace(/_/g, " ")} ({list.length})
                       </div>
                       <div className="space-y-1.5">
-                        {list.slice(0, 6).map((item, idx) => (
-                          <div
-                            key={idx}
-                            className="px-3 py-2 rounded-lg bg-[#0a0e14] border border-white/[0.065] text-[#e2e8f0] truncate"
-                          >
-                            {String(item.name || item.title || item.id || "Record")}
-                          </div>
-                        ))}
+                        {list.slice(0, 6).map((item, idx) => {
+                          const label = String(item.name || item.title || item.id || "Record");
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() =>
+                                onInspectApiRecord({
+                                  uid: `${ds}:${String(item.id || idx)}`,
+                                  id: String(item.id || `${ds}-${idx}`),
+                                  dataset: ds,
+                                  name: label,
+                                  category: String(item.category || ds),
+                                  description: String(item.description || item.briefing || ""),
+                                  image: null,
+                                  weight: item.weight ? String(item.weight) : undefined,
+                                  gridSize: undefined,
+                                  sellPrice: item.sell_price ? String(item.sell_price) : undefined,
+                                  spawnNotes: [],
+                                  coords:
+                                    typeof item.x === "number" && typeof item.y === "number"
+                                      ? { x: item.x, y: item.y }
+                                      : null,
+                                  raw: item,
+                                })
+                              }
+                              className="w-full text-left px-3 py-2 rounded-lg bg-[#0a0e14] border border-white/[0.065] hover:border-[#38bdf8]/60 text-[#e2e8f0] hover:text-[#7dd3fc] flex items-center justify-between gap-2 transition-colors"
+                            >
+                              <span className="truncate">{label}</span>
+                              <MapPin className="w-3.5 h-3.5 text-[#38bdf8] shrink-0" />
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   ) : null

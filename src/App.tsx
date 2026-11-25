@@ -23,6 +23,7 @@ import {
 import {
   doesTaskBelongToFaction,
   FACTIONS,
+  LAMANG_POIS,
   type CustomMapPin,
   type FactionId,
 } from "./config/mapConfig";
@@ -55,6 +56,8 @@ import {
   buildDisassemblyCatalogMaterial,
   buildDisassemblyRecipes,
   buildMaterialsCatalog,
+  buildYieldCatalogMaterial,
+  findDisassemblyRecipeForItemOrYield,
   type CatalogMaterial,
 } from "./utils/catalogBuilder";
 import { buildKeysAndDoorsCatalog, type GzwKeyDoorDef } from "./utils/keyBuilder";
@@ -81,23 +84,29 @@ import {
 import { buildVendorShopCatalog } from "./utils/vendorBuilder";
 import type { SavedWeaponLoadout } from "./utils/weaponBuilder";
 
-const PANEL_WIDTH_KEY = "lamang_ops_panel_width_v1";
+const PANEL_WIDTH_KEY = "lamang_ops_panel_width_v2";
 
-const DEFAULT_COMPACT_WIDTH = 468;
-const MIN_PANEL_WIDTH = 360;
+const MIN_PANEL_WIDTH = 380;
 
 type ApiStatusMode = "loading" | "live" | "cached" | "error";
 type WorkspaceMode = "hideout" | "tasks" | "weapons" | "vendors" | "keys" | "legal";
 type MobileTab = "hideout" | "tasks" | "weapons" | "vendors" | "map" | "keys" | "legal";
 
+function getDefaultSplitWidth(): number {
+  const vw = typeof window !== "undefined" ? window.innerWidth : 1440;
+  return vw >= 1536 ? 600 : vw >= 1280 ? 560 : 500;
+}
+
 function clampPanelWidth(rawWidth: number): number {
   const vw = typeof window !== "undefined" ? window.innerWidth : 1440;
-  const maxAllowed = Math.max(460, Math.min(960, Math.round(vw * 0.72)));
+  const maxAllowed = Math.max(500, Math.min(960, Math.round(vw * 0.72)));
   return Math.max(MIN_PANEL_WIDTH, Math.min(maxAllowed, Math.round(rawWidth)));
 }
 
 export default function App() {
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("hideout");
+  const workspaceModeRef = useRef(workspaceMode);
+  workspaceModeRef.current = workspaceMode;
   const [mobileTab, setMobileTab] = useState<MobileTab>("hideout");
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [glanceMode, setGlanceMode] = useState(false);
@@ -105,14 +114,15 @@ export default function App() {
     typeof window !== "undefined" ? window.innerWidth >= 1024 : true
   );
   const [panelWidth, setPanelWidth] = useState<number>(() => {
-    const saved = safeStorageGet<number>(PANEL_WIDTH_KEY, DEFAULT_COMPACT_WIDTH);
-    return clampPanelWidth(typeof saved === "number" ? saved : DEFAULT_COMPACT_WIDTH);
+    const saved = safeStorageGet<number>(PANEL_WIDTH_KEY, 0);
+    const fallback = getDefaultSplitWidth();
+    return clampPanelWidth(typeof saved === "number" && saved >= MIN_PANEL_WIDTH ? saved : fallback);
   });
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
   const panelWidthRef = useRef(panelWidth);
   panelWidthRef.current = panelWidth;
 
-  const isWidePanel = panelWidth >= 660;
+  const isWidePanel = panelWidth >= 680;
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
@@ -132,8 +142,8 @@ export default function App() {
   const toggleExpandPreset = useCallback(() => {
     setPanelWidth((prev) => {
       const target =
-        prev >= 620
-          ? DEFAULT_COMPACT_WIDTH
+        prev >= 680
+          ? getDefaultSplitWidth()
           : clampPanelWidth(Math.round(window.innerWidth * 0.56));
       safeStorageSet(PANEL_WIDTH_KEY, target);
       return target;
@@ -461,22 +471,41 @@ export default function App() {
     [updateOpState, showToast]
   );
 
-  const handleInspectMaterial = useCallback(async (mat: CatalogMaterial) => {
-    setInspectedTask(null);
-    setInspectedKey(null);
-    setInspectedMaterial(mat);
-    setInspectedLookup(null);
-    setIsLookupLoading(true);
-    if (window.innerWidth < 1024) {
-      setMobileTab("map");
-    }
-    try {
-      const lookup = await lookupMaterialSpawnIntel(mat.name);
-      setInspectedLookup(lookup);
-    } finally {
-      setIsLookupLoading(false);
-    }
-  }, []);
+  const ensureMapVisibleFor = useCallback(
+    (targetMode: "hideout" | "tasks" | "keys") => {
+      const isMobile = window.innerWidth < 1024;
+      const prev = workspaceModeRef.current;
+      const isFullWidth =
+        prev === "vendors" || prev === "weapons" || prev === "legal";
+      if (isFullWidth) {
+        setWorkspaceMode(targetMode);
+      }
+      if (isMobile) {
+        setMobileTab("map");
+      } else if (isFullWidth) {
+        setMobileTab(targetMode);
+      }
+    },
+    []
+  );
+
+  const handleInspectMaterial = useCallback(
+    async (mat: CatalogMaterial) => {
+      setInspectedTask(null);
+      setInspectedKey(null);
+      setInspectedMaterial(mat);
+      setInspectedLookup(null);
+      setIsLookupLoading(true);
+      ensureMapVisibleFor("hideout");
+      try {
+        const lookup = await lookupMaterialSpawnIntel(mat.name);
+        setInspectedLookup(lookup);
+      } finally {
+        setIsLookupLoading(false);
+      }
+    },
+    [ensureMapVisibleFor]
+  );
 
   const handleInspectDisassemblyItem = useCallback(
     (recipe: DisassemblyRecipeDef) => {
@@ -486,33 +515,69 @@ export default function App() {
     [handleInspectMaterial]
   );
 
-  const handleLocateTaskOnMap = useCallback((task: GzwTaskDef) => {
-    setInspectedMaterial(null);
-    setInspectedKey(null);
-    setInspectedTask(task);
-    if (window.innerWidth < 1024) {
-      setMobileTab("map");
-    }
-  }, []);
+  const handleLocateTaskOnMap = useCallback(
+    (task: GzwTaskDef) => {
+      setInspectedMaterial(null);
+      setInspectedKey(null);
+      setInspectedTask(task);
+      ensureMapVisibleFor("tasks");
+    },
+    [ensureMapVisibleFor]
+  );
 
-  const handleLocateKeyOnMap = useCallback((keyDef: GzwKeyDoorDef) => {
-    setInspectedMaterial(null);
-    setInspectedTask(null);
-    setInspectedKey(keyDef);
-    if (window.innerWidth < 1024) {
-      setMobileTab("map");
-    }
-  }, []);
+  const handleLocateKeyOnMap = useCallback(
+    (keyDef: GzwKeyDoorDef) => {
+      setInspectedMaterial(null);
+      setInspectedTask(null);
+      setInspectedKey(keyDef);
+      ensureMapVisibleFor("keys");
+    },
+    [ensureMapVisibleFor]
+  );
 
   const handleInspectApiRecord = useCallback(
     (rec: NormalizedApiRecord) => {
+      const q = rec.name.trim().toLowerCase();
+      const matchedKey = keysCatalog.find(
+        (k) => k.name.trim().toLowerCase() === q
+      );
+      if (matchedKey) {
+        handleLocateKeyOnMap(matchedKey);
+        return;
+      }
+
+      const matchedTask = allTasks.find(
+        (t) => t.name.trim().toLowerCase() === q
+      );
+      if (matchedTask) {
+        handleLocateTaskOnMap(matchedTask);
+        return;
+      }
+
+      const matchedDisassembly = disassemblyRecipes.find(
+        (d) => d.name.trim().toLowerCase() === q
+      );
+      if (matchedDisassembly) {
+        handleInspectDisassemblyItem(matchedDisassembly);
+        return;
+      }
+
       const existing = catalog.find(
-        (m) => m.name.toLowerCase() === rec.name.toLowerCase()
+        (m) => m.name.trim().toLowerCase() === q
       );
       if (existing) {
         handleInspectMaterial(existing);
         return;
       }
+
+      const disYieldMatch = findDisassemblyRecipeForItemOrYield(rec.name);
+      if (disYieldMatch && disYieldMatch.matchedAs === "yield") {
+        handleInspectMaterial(
+          buildYieldCatalogMaterial(rec.name, disYieldMatch.recipe)
+        );
+        return;
+      }
+
       handleInspectMaterial({
         key: rec.uid,
         id: rec.id,
@@ -529,12 +594,157 @@ export default function App() {
         sellPrice: rec.sellPrice,
         spawnNotes: rec.spawnNotes.length
           ? rec.spawnNotes
-          : [`${rec.dataset.replace(/_/g, " ")} spawn`],
+          : [`${rec.dataset.replace(/_/g, " ")} intel & spawn zones`],
         usedInUpgrades: [],
         apiCoords: rec.coords ? [{ ...rec.coords, label: rec.name }] : [],
       });
     },
-    [catalog, handleInspectMaterial]
+    [
+      keysCatalog,
+      allTasks,
+      disassemblyRecipes,
+      catalog,
+      handleLocateKeyOnMap,
+      handleLocateTaskOnMap,
+      handleInspectDisassemblyItem,
+      handleInspectMaterial,
+    ]
+  );
+
+  const handleLocateByName = useCallback(
+    (itemName: string) => {
+      const q = itemName.trim().toLowerCase();
+      if (!q) return;
+
+      const exactKey =
+        keysCatalog.find((k) => k.name.trim().toLowerCase() === q) ||
+        keysCatalog.find(
+          (k) =>
+            k.name.trim().toLowerCase().includes(q) ||
+            q.includes(k.name.trim().toLowerCase())
+        );
+      if (exactKey) {
+        handleLocateKeyOnMap(exactKey);
+        return;
+      }
+
+      const disMatch = disassemblyRecipes.find(
+        (d) => d.name.trim().toLowerCase() === q
+      );
+      if (disMatch) {
+        handleInspectDisassemblyItem(disMatch);
+        return;
+      }
+
+      const catMatch = catalog.find(
+        (m) => m.name.trim().toLowerCase() === q
+      );
+      if (catMatch) {
+        handleInspectMaterial(catMatch);
+        return;
+      }
+
+      const yieldMatch = findDisassemblyRecipeForItemOrYield(itemName);
+      if (yieldMatch) {
+        if (yieldMatch.matchedAs === "source") {
+          handleInspectDisassemblyItem(yieldMatch.recipe);
+        } else {
+          handleInspectMaterial(
+            buildYieldCatalogMaterial(itemName, yieldMatch.recipe)
+          );
+        }
+        return;
+      }
+
+      const taskMatch = allTasks.find(
+        (t) => t.name.trim().toLowerCase() === q
+      );
+      if (taskMatch) {
+        handleLocateTaskOnMap(taskMatch);
+        return;
+      }
+
+      const apiMatch =
+        allApiRecords.find((r) => r.name.trim().toLowerCase() === q) ||
+        allApiRecords.find((r) => r.name.trim().toLowerCase().includes(q));
+      if (apiMatch) {
+        handleInspectApiRecord(apiMatch);
+        return;
+      }
+
+      const poiMatch = LAMANG_POIS.find(
+        (p) =>
+          p.name.trim().toLowerCase() === q ||
+          p.name.trim().toLowerCase().includes(q)
+      );
+      if (poiMatch) {
+        handleInspectMaterial({
+          key: `poi_${poiMatch.id}`,
+          id: poiMatch.id,
+          name: itemName,
+          room: "all",
+          dataset: "Map Region",
+          required: 1,
+          tiersUsed: [],
+          layerHint: "blueCrates",
+          image: null,
+          description: `${poiMatch.name} (${poiMatch.tier} · LZ ${poiMatch.lz})`,
+          spawnNotes: [`Located at ${poiMatch.name} · LZ ${poiMatch.lz}`],
+          usedInUpgrades: [],
+          apiCoords: [{ x: poiMatch.x, y: poiMatch.y, label: poiMatch.name }],
+        });
+        return;
+      }
+
+      handleInspectMaterial({
+        key: `lookup_${q.replace(/[^a-z0-9]+/g, "_")}`,
+        id: `lookup_${q.replace(/[^a-z0-9]+/g, "_")}`,
+        name: itemName,
+        room: "all",
+        dataset: "Equipment & Loot",
+        required: 1,
+        tiersUsed: [],
+        layerHint: "blueCrates",
+        image: null,
+        description: `Recommended loot zones & vendor/raid areas for ${itemName}.`,
+        spawnNotes: ["Recommended search areas highlighted on the map"],
+        usedInUpgrades: [],
+        apiCoords: [],
+      });
+    },
+    [
+      keysCatalog,
+      disassemblyRecipes,
+      catalog,
+      allTasks,
+      allApiRecords,
+      handleLocateKeyOnMap,
+      handleInspectDisassemblyItem,
+      handleInspectMaterial,
+      handleLocateTaskOnMap,
+      handleInspectApiRecord,
+    ]
+  );
+
+  const handleLocateTaskById = useCallback(
+    (taskId: string) => {
+      const norm = taskId.trim().toLowerCase();
+      const matched = allTasks.find(
+        (t) =>
+          t.id.toLowerCase() === norm ||
+          t.name.trim().toLowerCase() === norm
+      );
+      if (!matched) {
+        showToast(`Task "${taskId}" not found in current catalog`);
+        return;
+      }
+      setWorkspaceMode("tasks");
+      if (window.innerWidth >= 1024) {
+        setMobileTab("tasks");
+      }
+      handleLocateTaskOnMap(matched);
+    },
+    [allTasks, handleLocateTaskOnMap, showToast]
   );
 
   const handleAddPin = useCallback(
@@ -837,21 +1047,6 @@ export default function App() {
     workspaceMode === "weapons" ||
     workspaceMode === "legal";
 
-  const activeModeProgress =
-    workspaceMode === "tasks"
-      ? { done: completedTasksCount, total: factionTasks.length }
-      : workspaceMode === "keys"
-        ? { done: ownedKeysCount, total: keysCatalog.length }
-        : workspaceMode === "weapons"
-          ? { done: savedLoadouts.length, total: Math.max(savedLoadouts.length, 1) }
-          : workspaceMode === "vendors"
-            ? { done: vendorShopItems.length, total: vendorShopItems.length }
-            : { done: builtCount, total: allUpgrades.length };
-  const progressPct =
-    activeModeProgress.total > 0
-      ? Math.round((activeModeProgress.done / activeModeProgress.total) * 100)
-      : 0;
-
   const isSidebarVisibleOnMobile = mobileTab !== "map";
 
   return (
@@ -1053,7 +1248,14 @@ export default function App() {
             <Menu className="w-5 h-5" />
           </button>
 
-          <div className="hidden lg:flex items-center gap-2 text-xs text-[#94a3b8] whitespace-nowrap">
+          <button
+            type="button"
+            disabled={apiStatus.mode === "loading"}
+            onClick={() => handleRefreshApi(true)}
+            title={`Refresh game data (${apiStatus.label})`}
+            aria-label="Sync Game Data"
+            className="hidden lg:inline-flex min-h-[32px] items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-[#e2e8f0] hover:text-white border border-white/[0.09] hover:border-white/[0.18] bg-[#141b26]/70 hover:bg-[#141b26] disabled:opacity-60 transition-colors whitespace-nowrap shrink-0"
+          >
             <span
               className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                 apiStatus.mode === "live"
@@ -1065,38 +1267,13 @@ export default function App() {
                       : "bg-red-500"
               }`}
             />
-            <span>{apiStatus.label}</span>
-          </div>
-
-          <button
-            type="button"
-            disabled={apiStatus.mode === "loading"}
-            onClick={() => handleRefreshApi(true)}
-            aria-label="Sync Game Data"
-            className="hidden lg:inline-flex min-h-[32px] items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-[#e2e8f0] hover:text-white border border-white/[0.09] hover:border-white/[0.18] bg-[#141b26]/70 hover:bg-[#141b26] disabled:opacity-60 transition-colors whitespace-nowrap shrink-0"
-          >
             <RefreshCw
-              className={`w-3.5 h-3.5 ${
+              className={`w-3.5 h-3.5 text-[#94a3b8] ${
                 apiStatus.mode === "loading" ? "animate-spin" : ""
               }`}
             />
-            <span className="hidden xl:inline">Sync Data</span>
+            <span>{apiStatus.mode === "loading" ? "Syncing…" : apiStatus.label}</span>
           </button>
-
-          <div className="text-right hidden lg:block pl-1">
-            <div className="font-mono-tabular text-xs font-semibold text-[#f1f5f9]">
-              {activeModeProgress.done}{" "}
-              <span className="text-[11px] font-normal text-[#7f8ea1]">
-                / {activeModeProgress.total}
-              </span>
-            </div>
-            <div className="w-16 sm:w-20 h-1 bg-white/[0.08] rounded-full overflow-hidden mt-0.5">
-              <div
-                className="h-full bg-[#e5a93c] transition-all duration-300"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-          </div>
 
           <button
             type="button"
@@ -1157,16 +1334,16 @@ export default function App() {
             isDraggingSplitter ? "" : "transition-[width] duration-150"
           }`}
         >
-          {/* Desktop Workspace Mode Bar + Expand/Compact Width Preset Toggle */}
+          {/* Desktop Workspace Mode Bar + Split/Expand Width Preset Toggle */}
           <div className="hidden lg:flex items-center justify-between gap-2 px-3.5 py-2 border-b border-white/[0.075] bg-[#0e131b] shrink-0">
-            <div className="flex items-center gap-0.5 rounded-lg bg-[#0a0e14] border border-white/[0.07] p-0.5 min-w-0 overflow-x-auto">
+            <div className="flex items-center gap-0.5 rounded-lg bg-[#0a0e14] border border-white/[0.07] p-0.5 min-w-0">
               <button
                 type="button"
                 onClick={() => {
                   setWorkspaceMode("hideout");
                   setMobileTab("hideout");
                 }}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11.5px] font-medium transition-colors whitespace-nowrap shrink-0 ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                   workspaceMode === "hideout"
                     ? "bg-[#141b26] text-[#f8fafc] shadow-sm ring-1 ring-white/[0.08]"
                     : "text-[#8896a8] hover:text-[#e2e8f0]"
@@ -1174,9 +1351,6 @@ export default function App() {
               >
                 <Hammer className="w-3.5 h-3.5 text-[#e5a93c]" />
                 <span>Hideout</span>
-                <span className="font-mono-tabular text-[10px] text-[#7f8ea1]">
-                  {builtCount}/{allUpgrades.length}
-                </span>
               </button>
 
               <button
@@ -1185,7 +1359,7 @@ export default function App() {
                   setWorkspaceMode("tasks");
                   setMobileTab("tasks");
                 }}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11.5px] font-medium transition-colors whitespace-nowrap shrink-0 ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                   workspaceMode === "tasks"
                     ? "bg-[#141b26] text-[#f8fafc] shadow-sm ring-1 ring-white/[0.08]"
                     : "text-[#8896a8] hover:text-[#e2e8f0]"
@@ -1193,9 +1367,6 @@ export default function App() {
               >
                 <CheckSquare className="w-3.5 h-3.5 text-[#38bdf8]" />
                 <span>Tasks</span>
-                <span className="font-mono-tabular text-[10px] text-[#7f8ea1]">
-                  {completedTasksCount}/{factionTasks.length}
-                </span>
               </button>
 
               <button
@@ -1204,7 +1375,7 @@ export default function App() {
                   setWorkspaceMode("weapons");
                   setMobileTab("weapons");
                 }}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11.5px] font-medium transition-colors whitespace-nowrap shrink-0 ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                   workspaceMode === "weapons"
                     ? "bg-[#141b26] text-[#f8fafc] shadow-sm ring-1 ring-white/[0.08]"
                     : "text-[#8896a8] hover:text-[#e2e8f0]"
@@ -1220,7 +1391,7 @@ export default function App() {
                   setWorkspaceMode("vendors");
                   setMobileTab("vendors");
                 }}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11.5px] font-medium transition-colors whitespace-nowrap shrink-0 ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                   workspaceMode === "vendors"
                     ? "bg-[#141b26] text-[#f8fafc] shadow-sm ring-1 ring-white/[0.08]"
                     : "text-[#8896a8] hover:text-[#e2e8f0]"
@@ -1236,7 +1407,7 @@ export default function App() {
                   setWorkspaceMode("keys");
                   setMobileTab("keys");
                 }}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11.5px] font-medium transition-colors whitespace-nowrap shrink-0 ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                   workspaceMode === "keys"
                     ? "bg-[#141b26] text-[#f8fafc] shadow-sm ring-1 ring-white/[0.08]"
                     : "text-[#8896a8] hover:text-[#e2e8f0]"
@@ -1244,9 +1415,6 @@ export default function App() {
               >
                 <KeyRound className="w-3.5 h-3.5 text-[#e5a93c]" />
                 <span>Keys</span>
-                <span className="font-mono-tabular text-[10px] text-[#7f8ea1]">
-                  {ownedKeysCount}/{keysCatalog.length}
-                </span>
               </button>
             </div>
 
@@ -1268,21 +1436,21 @@ export default function App() {
                 onClick={toggleExpandPreset}
                 title={
                   isWidePanel
-                    ? "Snap to compact sidebar (or drag divider)"
+                    ? "Return to balanced split view (or drag divider)"
                     : "Expand panel width (or drag divider)"
                 }
-                aria-label={isWidePanel ? "Compact panel" : "Expand panel"}
-                className="inline-flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium text-[#94a3b8] hover:text-white border border-white/[0.08] hover:border-white/[0.18] bg-white/[0.03] hover:bg-white/[0.07] transition-colors shrink-0 whitespace-nowrap"
+                aria-label={isWidePanel ? "Split View" : "Expand"}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#cbd5e1] hover:text-white border border-white/[0.08] hover:border-white/[0.18] bg-white/[0.03] hover:bg-white/[0.07] transition-colors shrink-0 whitespace-nowrap"
               >
                 {isWidePanel ? (
                   <>
                     <Minimize2 className="w-3.5 h-3.5 text-[#e5a93c]" />
-                    <span className="hidden 2xl:inline">Compact</span>
+                    <span>Split View</span>
                   </>
                 ) : (
                   <>
                     <Maximize2 className="w-3.5 h-3.5 text-[#38bdf8]" />
-                    <span className="hidden 2xl:inline">Expand</span>
+                    <span>Expand</span>
                   </>
                 )}
               </button>
@@ -1308,6 +1476,7 @@ export default function App() {
               selectedMaterialKey={inspectedMaterial?.key || null}
               onInspectMaterial={handleInspectMaterial}
               onInspectDisassemblyItem={handleInspectDisassemblyItem}
+              onLocateOutcome={handleLocateByName}
               onInspectApiRecord={handleInspectApiRecord}
               onArmPinDrop={handleArmPinDrop}
               catalog={catalog}
@@ -1324,6 +1493,7 @@ export default function App() {
               onToggleTaskComplete={handleToggleTaskComplete}
               selectedTaskId={inspectedTask?.id || null}
               onLocateTaskOnMap={handleLocateTaskOnMap}
+              onLocateRelatedItem={handleLocateByName}
               isExpanded={isWidePanel}
               isLoadingApi={apiStatus.mode === "loading"}
             />
@@ -1341,6 +1511,7 @@ export default function App() {
               shopItems={vendorShopItems}
               isExpanded={isWidePanel}
               isLoadingApi={apiStatus.mode === "loading"}
+              onLocateItem={handleLocateByName}
             />
           ) : workspaceMode === "legal" ? (
             <LegalPrivacyPanel
@@ -1359,6 +1530,7 @@ export default function App() {
               onToggleOwnedKey={handleToggleOwnedKey}
               selectedKeyId={inspectedKey?.id || null}
               onLocateKeyOnMap={handleLocateKeyOnMap}
+              onSelectLinkedTask={handleLocateTaskById}
               isExpanded={isWidePanel}
               isLoadingApi={apiStatus.mode === "loading"}
             />
@@ -1445,6 +1617,9 @@ export default function App() {
             onSelectKey={handleLocateKeyOnMap}
             onCloseInspectKey={() => setInspectedKey(null)}
             onSelectMaterial={handleInspectMaterial}
+            disassemblyRecipes={disassemblyRecipes}
+            onSelectDisassembly={handleInspectDisassemblyItem}
+            onLocateRelatedItem={handleLocateByName}
             completedTasks={completedTasks}
             onToggleTaskComplete={handleToggleTaskComplete}
             apiRecords={allApiRecords}

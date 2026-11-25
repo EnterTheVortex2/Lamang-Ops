@@ -515,7 +515,7 @@ async function startServer() {
     }
 
     try {
-      const upstream = await fetch(rawUrl, {
+      let upstream = await fetch(rawUrl, {
         headers: {
           "User-Agent":
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
@@ -524,6 +524,58 @@ async function startServer() {
         },
         signal: AbortSignal.timeout(8000),
       });
+
+      // Fallback: if Wikia renamed/moved the image (404), resolve live File: via Fandom API
+      if (!upstream.ok && upstream.status === 404) {
+        try {
+          const pathMatch = parsed.pathname.match(/\/images\/[^/]+\/[^/]+\/([^/]+)/i);
+          const rawFileName = pathMatch ? decodeURIComponent(pathMatch[1]) : "";
+          if (rawFileName) {
+            const expandedQuery = rawFileName
+              .replace(/\.(png|jpg|jpeg|webp)$/i, "")
+              .replace(/%28/gi, "(")
+              .replace(/%29/gi, ")")
+              .replace(/5\.56-\.?300/gi, "5.56x45mm .300")
+              .replace(/Mag\((\d+)_rnds\)/gi, "$1-Round Magazine")
+              .replace(/M-Lok_3/gi, "M-LOK Rail - 3 slot")
+              .replace(/\bG17\b/gi, "Glock 17")
+              .replace(/[_-]+/g, " ")
+              .trim();
+            const searchApi = `https://gray-zone-warfare.fandom.com/api.php?action=query&list=search&srnamespace=6&srsearch=${encodeURIComponent(expandedQuery)}&srlimit=3&format=json`;
+            const sRes = await fetch(searchApi, { signal: AbortSignal.timeout(6000) });
+            if (sRes.ok) {
+              const sJson = (await sRes.json()) as {
+                query?: { search?: { title: string }[] };
+              };
+              const hitTitle = sJson.query?.search?.[0]?.title;
+              if (hitTitle) {
+                const infoApi = `https://gray-zone-warfare.fandom.com/api.php?action=query&titles=${encodeURIComponent(hitTitle)}&prop=imageinfo&iiprop=url&format=json`;
+                const iRes = await fetch(infoApi, { signal: AbortSignal.timeout(6000) });
+                if (iRes.ok) {
+                  const iJson = (await iRes.json()) as {
+                    query?: { pages?: Record<string, { imageinfo?: { url?: string }[] }> };
+                  };
+                  const liveUrl = Object.values(iJson.query?.pages || {})[0]?.imageinfo?.[0]?.url;
+                  if (liveUrl && liveUrl.startsWith("https://static.wikia.nocookie.net/")) {
+                    upstream = await fetch(liveUrl, {
+                      headers: {
+                        "User-Agent":
+                          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+                        Referer: "https://gray-zone-warfare.fandom.com/",
+                        Accept: "image/avif,image/webp,image/png,image/*,*/*;q=0.8",
+                      },
+                      signal: AbortSignal.timeout(8000),
+                    });
+                  }
+                }
+              }
+            }
+          }
+        } catch {
+          // ignore fallback error
+        }
+      }
+
       if (!upstream.ok) {
         res.status(upstream.status).end();
         return;

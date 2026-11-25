@@ -25,6 +25,7 @@ export function KeysDoorsPanel({
   onToggleOwnedKey,
   selectedKeyId,
   onLocateKeyOnMap,
+  onSelectLinkedTask,
   isExpanded,
   isLoadingApi,
 }: KeysDoorsPanelProps) {
@@ -81,8 +82,8 @@ export function KeysDoorsPanel({
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-[#0e131b]">
       {/* Keyholder & Door Filters */}
-      <div className="px-4 py-3.5 border-b border-white/[0.075] bg-[#0e131b] space-y-3 shrink-0">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+      <div className="px-4 py-3 border-b border-white/[0.075] bg-[#0e131b] space-y-2.5 shrink-0">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="relative">
             <Search className="w-4 h-4 text-[#7b8ca1] absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -90,7 +91,7 @@ export function KeysDoorsPanel({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search key, door, region, task..."
-              className="w-full min-h-[44px] lg:min-h-[38px] bg-[#0a0e14] border border-white/[0.08] rounded-xl pl-9 pr-3 py-2 text-sm lg:text-[13px] text-[#f1f5f9] placeholder:text-[#66778b] focus:outline-none focus:border-[#e5a93c] transition-colors"
+              className="w-full min-h-[42px] lg:min-h-[36px] bg-[#0a0e14] border border-white/[0.08] rounded-xl pl-9 pr-3 py-1.5 text-sm lg:text-[13px] text-[#f1f5f9] placeholder:text-[#66778b] focus:outline-none focus:border-[#e5a93c] transition-colors"
             />
           </div>
 
@@ -98,7 +99,7 @@ export function KeysDoorsPanel({
             aria-label="Filter keys by region"
             value={selectedRegion}
             onChange={(e) => setSelectedRegion(e.target.value)}
-            className="w-full min-h-[44px] lg:min-h-[38px] bg-[#0a0e14] border border-white/[0.08] rounded-xl px-3 py-2 text-sm lg:text-[13px] text-[#f1f5f9] focus:outline-none focus:border-[#e5a93c]"
+            className="w-full min-h-[42px] lg:min-h-[36px] bg-[#0a0e14] border border-white/[0.08] rounded-xl px-3 py-1.5 text-sm lg:text-[13px] text-[#f1f5f9] focus:outline-none focus:border-[#e5a93c]"
           >
             <option value="ALL">All Regions ({keysList.length})</option>
             {regions.map((r) => (
@@ -125,7 +126,7 @@ export function KeysDoorsPanel({
                 key={mode.id}
                 type="button"
                 onClick={() => setFilterMode(mode.id)}
-                className={`min-h-[38px] lg:min-h-[32px] px-3 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                className={`min-h-[36px] lg:min-h-[30px] px-3 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                   filterMode === mode.id
                     ? "bg-[#141b26] text-[#e5a93c] ring-1 ring-white/[0.08]"
                     : "text-[#94a3b8] hover:text-[#f1f5f9]"
@@ -231,14 +232,23 @@ export function KeysDoorsPanel({
                     </div>
 
                     {keyDef.linkedTasks.length > 0 && (
-                      <div className="mt-2.5 pt-2.5 border-t border-white/[0.06] text-xs text-[#e5a93c]">
-                        <span className="inline-flex items-center gap-1.5 font-medium">
-                          <KeyRound className="w-3.5 h-3.5 shrink-0" />
-                          Used in{" "}
-                          {keyDef.linkedTasks
-                            .map((t) => `${t.name} (${t.vendor})`)
-                            .join(", ")}
+                      <div className="mt-2.5 pt-2.5 border-t border-white/[0.06] flex flex-wrap items-center gap-1.5 text-xs">
+                        <span className="inline-flex items-center gap-1 text-[#9fb0c4] font-medium">
+                          <KeyRound className="w-3.5 h-3.5 text-[#e5a93c] shrink-0" />
+                          Tasks:
                         </span>
+                        {keyDef.linkedTasks.map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => onSelectLinkedTask?.(t.id)}
+                            title={`Locate ${t.name} (${t.vendor}) on map`}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#0a0e14] border border-white/[0.08] hover:border-[#38bdf8]/60 text-[#fde68a] hover:text-[#7dd3fc] transition-colors text-left"
+                          >
+                            <span>{t.name}</span>
+                            <span className="text-[#7f8ea1]">({t.vendor})</span>
+                          </button>
+                        ))}
                       </div>
                     )}
                   </div>

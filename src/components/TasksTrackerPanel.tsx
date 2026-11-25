@@ -41,6 +41,7 @@ interface TasksTrackerPanelProps {
   onToggleTaskComplete: (taskId: string) => void;
   selectedTaskId: string | null;
   onLocateTaskOnMap: (task: GzwTaskDef) => void;
+  onLocateRelatedItem?: (itemName: string) => void;
   isExpanded: boolean;
   isLoadingApi: boolean;
 }
@@ -61,6 +62,7 @@ export function TasksTrackerPanel({
   onToggleTaskComplete,
   selectedTaskId,
   onLocateTaskOnMap,
+  onLocateRelatedItem,
   isExpanded,
   isLoadingApi,
 }: TasksTrackerPanelProps) {
@@ -219,7 +221,7 @@ export function TasksTrackerPanel({
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-[#0e131b]">
       {/* Vendor & Region Filter Controls */}
-      <div className="px-4 py-3.5 border-b border-white/[0.075] bg-[#0e131b] space-y-3 shrink-0">
+      <div className="px-4 py-3 border-b border-white/[0.075] bg-[#0e131b] space-y-2.5 shrink-0">
         {/* Horizontal scrollable Vendor Roster Strip */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
           <button
@@ -228,20 +230,20 @@ export function TasksTrackerPanel({
               setSelectedVendor("ALL");
               setSelectedArea("ALL");
             }}
-            className={`min-h-[52px] px-3 py-2 rounded-xl border text-left transition-colors shrink-0 flex items-center gap-2.5 ${
+            className={`min-h-[48px] px-3 py-1.5 rounded-xl border text-left transition-colors shrink-0 flex items-center gap-2.5 ${
               selectedVendor === "ALL"
                 ? "bg-[#141b26] border-[#e5a93c]/65 text-[#f8fafc]"
                 : "bg-[#0a0e14] border-white/[0.07] text-[#9fb0c4] hover:text-white hover:border-white/[0.16]"
             }`}
           >
-            <div className="w-9 h-9 rounded-lg bg-[#0e131b] border border-white/[0.08] flex items-center justify-center text-xs font-semibold text-[#e5a93c]">
+            <div className="w-8 h-8 rounded-lg bg-[#0e131b] border border-white/[0.08] flex items-center justify-center text-xs font-semibold text-[#e5a93c]">
               All
             </div>
             <div>
               <div className="text-xs font-semibold leading-tight">
                 All Vendors
               </div>
-              <div className="font-mono-tabular text-xs text-[#8899ae]">
+              <div className="font-mono-tabular text-[11px] text-[#8899ae]">
                 {totalDone}/{factionTasks.length}
               </div>
             </div>
@@ -262,7 +264,7 @@ export function TasksTrackerPanel({
                   setSelectedVendor(vendor.name);
                   setSelectedArea("ALL");
                 }}
-                className={`min-h-[52px] px-3 py-2 rounded-xl border text-left transition-colors shrink-0 flex items-center gap-2.5 ${
+                className={`min-h-[48px] px-3 py-1.5 rounded-xl border text-left transition-colors shrink-0 flex items-center gap-2.5 ${
                   active
                     ? "bg-[#141b26] border-[#e5a93c]/65 text-[#f8fafc]"
                     : "bg-[#0a0e14] border-white/[0.07] text-[#9fb0c4] hover:text-white hover:border-white/[0.16]"
@@ -274,11 +276,11 @@ export function TasksTrackerPanel({
                     alt={vendor.name}
                     referrerPolicy="no-referrer"
                     onError={() => markImgFailed(vendor.image!)}
-                    className="w-9 h-9 rounded-lg object-cover object-top border border-white/[0.1] bg-[#080b10] shrink-0"
+                    className="w-8 h-8 rounded-lg object-cover object-top border border-white/[0.1] bg-[#080b10] shrink-0"
                     loading="lazy"
                   />
                 ) : (
-                  <div className="w-9 h-9 rounded-lg bg-[#0e131b] border border-white/[0.08] flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-[#0e131b] border border-white/[0.08] flex items-center justify-center shrink-0">
                     <User className="w-4 h-4 text-[#8899ae]" />
                   </div>
                 )}
@@ -286,7 +288,7 @@ export function TasksTrackerPanel({
                   <div className="text-xs font-semibold leading-tight whitespace-nowrap">
                     {vendor.name}
                   </div>
-                  <div className="font-mono-tabular text-xs text-[#8899ae]">
+                  <div className="font-mono-tabular text-[11px] text-[#8899ae]">
                     {stats.done}/{stats.total}
                   </div>
                 </div>
@@ -295,82 +297,9 @@ export function TasksTrackerPanel({
           })}
         </div>
 
-        {/* Direct Vendor & Area Dropdowns */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          <div>
-            <label className="block text-xs font-medium text-[#9fb0c4] mb-1">
-              Vendor
-            </label>
-            <select
-              aria-label="Filter tasks by vendor"
-              value={selectedVendor}
-              onChange={(e) => {
-                setSelectedVendor(e.target.value);
-                setSelectedArea("ALL");
-              }}
-              className="w-full min-h-[44px] lg:min-h-[38px] bg-[#0a0e14] border border-white/[0.08] rounded-xl px-3 py-2 text-sm lg:text-[13px] text-[#f1f5f9] focus:outline-none focus:border-[#e5a93c]"
-            >
-              <option value="ALL">All Vendors ({factionTasks.length})</option>
-              {vendors.map((v) => {
-                const st = vendorStats.get(v.name.toLowerCase());
-                return (
-                  <option key={v.id} value={v.name}>
-                    {v.name} ({st?.total ?? 0})
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-medium text-[#9fb0c4]">
-                Region
-              </label>
-              {selectedFaction !== "ALL" && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllFactionsOverride((v) => !v)}
-                  className="text-xs font-medium text-[#38bdf8] hover:underline"
-                >
-                  {showAllFactionsOverride
-                    ? `Filter: ${selectedFaction}`
-                    : "Show all factions"}
-                </button>
-              )}
-            </div>
-            <select
-              aria-label="Filter tasks by area"
-              value={
-                selectedArea === "ALL" ||
-                areaOptions.some((o) => o.area === selectedArea)
-                  ? selectedArea
-                  : "ALL"
-              }
-              onChange={(e) => setSelectedArea(e.target.value)}
-              className="w-full min-h-[44px] lg:min-h-[38px] bg-[#0a0e14] border border-white/[0.08] rounded-xl px-3 py-2 text-sm lg:text-[13px] text-[#f1f5f9] focus:outline-none focus:border-[#e5a93c]"
-            >
-              <option value="ALL">
-                All Regions ({vendorScopedTasks.length})
-              </option>
-              {areaOptions.map((opt) => {
-                const isStarter =
-                  selectedFaction !== "ALL" &&
-                  opt.area === FACTIONS[selectedFaction].starterTown;
-                return (
-                  <option key={opt.area} value={opt.area}>
-                    {opt.area}
-                    {isStarter ? ` (${selectedFaction} Starter)` : ""} ({opt.count})
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-        </div>
-
-        {/* Search + Type + Status Row */}
-        <div className="space-y-2.5">
-          <div className="relative">
+        {/* Unified Search + Region Filter Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_200px] gap-2">
+          <div className="relative min-w-0">
             <Search className="w-4 h-4 text-[#7b8ca1] absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
@@ -381,29 +310,70 @@ export function TasksTrackerPanel({
                   ? `Search ${activeVendorProfile.name} tasks, walkthroughs, or keys...`
                   : "Search task, region, walkthrough, or required key..."
               }
-              className="w-full min-h-[44px] lg:min-h-[38px] bg-[#0a0e14] border border-white/[0.08] rounded-xl pl-9 pr-3 py-2 text-sm lg:text-[13px] text-[#f1f5f9] placeholder:text-[#66778b] focus:outline-none focus:border-[#e5a93c] transition-colors"
+              className="w-full min-h-[42px] lg:min-h-[36px] bg-[#0a0e14] border border-white/[0.08] rounded-xl pl-9 pr-3 py-1.5 text-sm lg:text-[13px] text-[#f1f5f9] placeholder:text-[#66778b] focus:outline-none focus:border-[#e5a93c] transition-colors"
             />
           </div>
 
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center rounded-xl bg-[#0a0e14] border border-white/[0.07] p-1 overflow-x-auto max-w-full">
-              {CATEGORY_OPTIONS.map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setCategoryFilter(opt.id)}
-                  className={`min-h-[38px] lg:min-h-[32px] px-2.5 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
-                    categoryFilter === opt.id
-                      ? "bg-[#141b26] text-[#e5a93c] ring-1 ring-white/[0.08]"
-                      : "text-[#94a3b8] hover:text-[#f1f5f9]"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+          <select
+            aria-label="Filter tasks by area"
+            value={
+              selectedArea === "ALL" ||
+              areaOptions.some((o) => o.area === selectedArea)
+                ? selectedArea
+                : "ALL"
+            }
+            onChange={(e) => setSelectedArea(e.target.value)}
+            className="w-full min-h-[42px] lg:min-h-[36px] bg-[#0a0e14] border border-white/[0.08] rounded-xl px-3 py-1.5 text-sm lg:text-[13px] text-[#f1f5f9] focus:outline-none focus:border-[#e5a93c]"
+          >
+            <option value="ALL">
+              All Regions ({vendorScopedTasks.length})
+            </option>
+            {areaOptions.map((opt) => {
+              const isStarter =
+                selectedFaction !== "ALL" &&
+                opt.area === FACTIONS[selectedFaction].starterTown;
+              return (
+                <option key={opt.area} value={opt.area}>
+                  {opt.area}
+                  {isStarter ? ` (${selectedFaction} Starter)` : ""} ({opt.count})
+                </option>
+              );
+            })}
+          </select>
+        </div>
 
-            <div className="flex items-center rounded-xl bg-[#0a0e14] border border-white/[0.07] p-1 shrink-0">
+        {/* Category + Status + Faction Override Row */}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center rounded-xl bg-[#0a0e14] border border-white/[0.07] p-1 overflow-x-auto max-w-full">
+            {CATEGORY_OPTIONS.map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setCategoryFilter(opt.id)}
+                className={`min-h-[36px] lg:min-h-[30px] px-2.5 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+                  categoryFilter === opt.id
+                    ? "bg-[#141b26] text-[#e5a93c] ring-1 ring-white/[0.08]"
+                    : "text-[#94a3b8] hover:text-[#f1f5f9]"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {selectedFaction !== "ALL" && (
+              <button
+                type="button"
+                onClick={() => setShowAllFactionsOverride((v) => !v)}
+                className="text-xs font-medium text-[#38bdf8] hover:underline whitespace-nowrap px-1"
+              >
+                {showAllFactionsOverride
+                  ? `Only ${selectedFaction}`
+                  : "All Factions"}
+              </button>
+            )}
+            <div className="flex items-center rounded-xl bg-[#0a0e14] border border-white/[0.07] p-1">
               {(
                 [
                   { id: "all", label: "All" },
@@ -415,7 +385,7 @@ export function TasksTrackerPanel({
                   key={st.id}
                   type="button"
                   onClick={() => setStatusFilter(st.id)}
-                  className={`min-h-[38px] lg:min-h-[32px] px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                  className={`min-h-[36px] lg:min-h-[30px] px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
                     statusFilter === st.id
                       ? "bg-[#141b26] text-[#38bdf8] ring-1 ring-white/[0.08]"
                       : "text-[#94a3b8] hover:text-[#f1f5f9]"
@@ -843,7 +813,7 @@ export function TasksTrackerPanel({
                           </div>
                         )}
 
-                        {/* Required Gear, Keys & Task Items */}
+                        {/* Required Gear, Keys & Task Items (Clickable to locate on map) */}
                         {task.relatedItems.length > 0 && (
                           <div className="space-y-1.5">
                             <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#e5a93c]">
@@ -852,9 +822,16 @@ export function TasksTrackerPanel({
                             </div>
                             <div className="space-y-1.5">
                               {task.relatedItems.map((item, idx) => (
-                                <div
+                                <button
                                   key={`${item.name}-${idx}`}
-                                  className="flex items-center gap-3 rounded-lg bg-[#0a0e14] border border-white/[0.06] px-3 py-2"
+                                  type="button"
+                                  onClick={() =>
+                                    onLocateRelatedItem
+                                      ? onLocateRelatedItem(item.name)
+                                      : onLocateTaskOnMap(task)
+                                  }
+                                  title={`Locate ${item.name} on map`}
+                                  className="w-full text-left flex items-center gap-3 rounded-lg bg-[#0a0e14] border border-white/[0.06] hover:border-[#38bdf8]/60 px-3 py-2 transition-colors group"
                                 >
                                   <ItemThumbnail
                                     src={item.image}
@@ -863,11 +840,12 @@ export function TasksTrackerPanel({
                                   />
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center justify-between gap-2">
-                                      <span className="text-[13px] font-medium text-[#f1f5f9] truncate">
+                                      <span className="text-[13px] font-medium text-[#f1f5f9] group-hover:text-[#7dd3fc] truncate transition-colors">
                                         {item.name}
                                       </span>
-                                      <span className="text-xs text-[#38bdf8] shrink-0">
+                                      <span className="inline-flex items-center gap-1 text-xs text-[#38bdf8] shrink-0">
                                         {item.kind}
+                                        <MapPin className="w-3 h-3 opacity-80" />
                                       </span>
                                     </div>
                                     {item.note && (
@@ -876,7 +854,7 @@ export function TasksTrackerPanel({
                                       </div>
                                     )}
                                   </div>
-                                </div>
+                                </button>
                               ))}
                             </div>
                           </div>

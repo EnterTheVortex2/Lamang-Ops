@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowUpDown,
   Loader2,
+  MapPin,
   Search,
   ShoppingBag,
   SlidersHorizontal,
@@ -25,6 +26,7 @@ import { ItemThumbnail } from "./ItemThumbnail";
 interface VendorShopPanelProps {
   vendors: VendorProfile[];
   shopItems: VendorShopItem[];
+  onLocateItem?: (itemName: string) => void;
   isExpanded: boolean;
   isLoadingApi: boolean;
 }
@@ -42,6 +44,7 @@ const CATEGORY_ALIASES: Record<string, string> = {
 export function VendorShopPanel({
   vendors,
   shopItems,
+  onLocateItem,
   isLoadingApi,
 }: VendorShopPanelProps) {
   const [selectedVendor, setSelectedVendor] = useState<string>("Gunny");
@@ -181,18 +184,22 @@ export function VendorShopPanel({
 
   const getEnrichment = (item: VendorShopItem): VendorItemEnrichment | null => {
     const key = item.itemName.trim().toLowerCase();
+    const staticHit = staticWeaponEnrichment.get(key);
     const directMap = enrichmentByCategory[item.rawCategory];
     const directMatch = directMap?.get(key);
-    if (directMatch) return directMatch;
+    if (directMatch) {
+      return staticHit?.image ? { ...directMatch, image: staticHit.image } : directMatch;
+    }
 
     // Cross-category fallback (handles API items indexed under adjacent weapon_parts / gear categories)
     for (const catMap of Object.values(enrichmentByCategory)) {
       const hit = catMap.get(key);
-      if (hit) return hit;
+      if (hit) {
+        return staticHit?.image ? { ...hit, image: staticHit.image } : hit;
+      }
     }
 
     // Bundled 0.5 Gunsmith fallback for instant weapon & attachment images/specs
-    const staticHit = staticWeaponEnrichment.get(key);
     if (staticHit) return staticHit;
 
     // Guaranteed local item image resolution if available
@@ -753,6 +760,23 @@ export function VendorShopPanel({
                 <p className="text-[13px] text-[#c4d0df] leading-relaxed rounded-lg bg-[#0a0e14] border border-white/[0.06] p-3.5">
                   {inspectedEnrichment.description}
                 </p>
+              )}
+
+              {onLocateItem && (
+                <div className="pt-1 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const targetName = inspectedItem.itemName;
+                      setInspectedItem(null);
+                      onLocateItem(targetName);
+                    }}
+                    className="min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0a0e14] border border-[#38bdf8]/45 hover:border-[#38bdf8] text-xs font-semibold text-[#7dd3fc] hover:text-white transition-colors"
+                  >
+                    <MapPin className="w-3.5 h-3.5 text-[#38bdf8]" />
+                    <span>Locate Spawns / Area on Map</span>
+                  </button>
+                </div>
               )}
             </div>
           </div>
