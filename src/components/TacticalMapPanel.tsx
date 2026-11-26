@@ -183,6 +183,175 @@ function formatBearing(dx: number, dy: number): string {
   return `${Math.round(deg).toString().padStart(3, "0")}° ${card}`;
 }
 
+const TRANSPARENT_TILE_DATA_URI =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+const LZS_LIST = LAMANG_POIS.filter((p) => p.kind === "lz");
+const COPS_LIST = LAMANG_POIS.filter((p) => p.kind === "cop");
+const NON_SUB_POIS = LAMANG_POIS.filter((p) => p.kind !== "sublocation");
+const SUB_POIS_WITH_LL = LAMANG_POIS.filter((p) => p.kind === "sublocation").map(
+  (poi) => ({
+    poi,
+    latLng: toLatLng(poi.x, poi.y),
+  })
+);
+
+type ZoomTier = 0 | 1 | 2 | 3 | 4 | 5;
+function getZoomTier(z: number): ZoomTier {
+  if (z >= 17.5) return 5;
+  if (z >= 16.5) return 4;
+  if (z >= 15.2) return 3;
+  if (z >= 15.0) return 2;
+  if (z >= 14.5) return 1;
+  return 0;
+}
+
+class TacticalGridCanvasLayer extends L.GridLayer {
+  private mapInstance: L.Map;
+  private zoomGetter: () => number;
+
+  constructor(
+    mapInstance: L.Map,
+    zoomGetter: () => number,
+    options?: L.GridLayerOptions
+  ) {
+    super({
+      tileSize: 256,
+      pane: "overlayPane",
+      zIndex: 220,
+      updateWhenIdle: false,
+      updateWhenZooming: true,
+      keepBuffer: 4,
+      ...options,
+    });
+    this.mapInstance = mapInstance;
+    this.zoomGetter = zoomGetter;
+  }
+
+  createTile(coords: L.Coords): HTMLElement {
+    const tile = document.createElement("canvas");
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const size = this.getTileSize();
+    tile.width = Math.round(size.x * dpr);
+    tile.height = Math.round(size.y * dpr);
+    tile.style.width = `${size.x}px`;
+    tile.style.height = `${size.y}px`;
+    tile.style.pointerEvents = "none";
+
+    const ctx = tile.getContext("2d");
+    if (!ctx) return tile;
+
+    const nwPt = L.point(coords.x * size.x, coords.y * size.y);
+    const sePt = L.point((coords.x + 1) * size.x, (coords.y + 1) * size.y);
+    const nwM = L.CRS.EPSG3857.project(
+      this.mapInstance.unproject(nwPt, coords.z)
+    );
+    const seM = L.CRS.EPSG3857.project(
+      this.mapInstance.unproject(sePt, coords.z)
+    );
+
+    const tileMinX = nwM.x;
+    const tileMaxX = seM.x;
+    const tileMaxY = nwM.y;
+    const tileMinY = seM.y;
+
+    const spanX = tileMaxX - tileMinX;
+    const spanY = tileMaxY - tileMinY;
+    if (spanX <= 0 || spanY <= 0) return tile;
+
+    const clipMinX = Math.max(MAP_EXTENT.minX, tileMinX);
+    const clipMaxX = Math.min(MAP_EXTENT.maxX, tileMaxX);
+    const clipMinY = Math.max(MAP_EXTENT.minY, tileMinY);
+    const clipMaxY = Math.min(MAP_EXTENT.maxY, tileMaxY);
+    if (clipMaxX < clipMinX || clipMaxY < clipMinY) return tile;
+
+    ctx.scale(dpr, dpr);
+
+    const toPxX = (mx: number) => ((mx - tileMinX) / spanX) * size.x;
+    const toPxY = (my: number) => ((tileMaxY - my) / spanY) * size.y;
+
+    const z = this.zoomGetter();
+    const step = z >= 15 ? 100 : z >= 14.5 ? 500 : 1000;
+    const labelStep =
+      z >= 17.5 ? 100 : z >= 16.5 ? 200 : z >= 14.5 ? 500 : 1000;
+
+    const xPx0 = toPxX(clipMinX);
+    const xPx1 = toPxX(clipMaxX);
+    const yPxTop = toPxY(clipMaxY);
+    const yPxBot = toPxY(clipMinY);
+
+    const startX = Math.ceil(clipMinX / step) * step;
+    for (let x = startX; x <= clipMaxX; x += step) {
+      const px = Math.round(toPxX(x)) + 0.5;
+      const isMajor = x % 500 === 0;
+      ctx.strokeStyle = isMajor
+        ? "rgba(229, 169, 60, 0.30)"
+        : `rgba(203, 213, 225, ${z >= 15 ? 0.18 : 0.2})`;
+      ctx.lineWidth = isMajor ? 1.2 : 0.8;
+      ctx.beginPath();
+      ctx.moveTo(px, yPxTop);
+      ctx.lineTo(px, yPxBot);
+      ctx.stroke();
+    }
+
+    const startY = Math.ceil(clipMinY / step) * step;
+    for (let y = startY; y <= clipMaxY; y += step) {
+      const py = Math.round(toPxY(y)) + 0.5;
+      const isMajor = y % 500 === 0;
+      ctx.strokeStyle = isMajor
+        ? "rgba(229, 169, 60, 0.30)"
+        : `rgba(203, 213, 225, ${z >= 15 ? 0.18 : 0.2})`;
+      ctx.lineWidth = isMajor ? 1.2 : 0.8;
+      ctx.beginPath();
+      ctx.moveTo(xPx0, py);
+      ctx.lineTo(xPx1, py);
+      ctx.stroke();
+    }
+
+    const padMetersX = (56 / size.x) * spanX;
+    const padMetersY = (20 / size.y) * spanY;
+    const lblStartX = Math.max(
+      MAP_EXTENT.minX,
+      Math.floor((tileMinX - padMetersX) / labelStep) * labelStep
+    );
+    const lblEndX = Math.min(
+      MAP_EXTENT.maxX - 100,
+      Math.ceil((tileMaxX + padMetersX) / labelStep) * labelStep
+    );
+    const lblStartY = Math.max(
+      MAP_EXTENT.minY,
+      Math.floor((tileMinY - padMetersY) / labelStep) * labelStep
+    );
+    const lblEndY = Math.min(
+      MAP_EXTENT.maxY - 100,
+      Math.ceil((tileMaxY + padMetersY) / labelStep) * labelStep
+    );
+
+    const fontSize = z >= 15 ? 9.5 : 10;
+    ctx.font = `600 ${fontSize}px "JetBrains Mono", ui-monospace, monospace`;
+    ctx.textBaseline = "top";
+    ctx.textAlign = "left";
+    ctx.shadowColor = "rgba(0, 0, 0, 0.96)";
+    ctx.shadowBlur = 3;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 1;
+    ctx.fillStyle = `rgba(241, 245, 249, ${z >= 15 ? 0.58 : 0.44})`;
+
+    for (let lx = lblStartX; lx <= lblEndX; lx += labelStep) {
+      for (let ly = lblStartY; ly <= lblEndY; ly += labelStep) {
+        if (lx + 10 < MAP_EXTENT.minX || lx + 10 >= MAP_EXTENT.maxX) continue;
+        if (ly + 88 <= MAP_EXTENT.minY || ly + 88 > MAP_EXTENT.maxY) continue;
+        const px = toPxX(lx + 10);
+        const py = toPxY(ly + 88);
+        if (px > size.x + 2 || px < -56 || py > size.y + 2 || py < -20) continue;
+        ctx.fillText(formatGridSquare(lx + 10, ly + 10), px, py);
+      }
+    }
+
+    return tile;
+  }
+}
+
 export function TacticalMapPanel({
   catalog,
   customPins,
@@ -250,6 +419,13 @@ export function TacticalMapPanel({
     copsAndLzs: L.layerGroup(),
   });
 
+  const gridCanvasLayerRef = useRef<TacticalGridCanvasLayer | null>(null);
+  const staticCratesSubRef = useRef<L.LayerGroup>(L.layerGroup());
+  const staticElectronicsSubRef = useRef<L.LayerGroup>(L.layerGroup());
+  const customCratesSubRef = useRef<L.LayerGroup>(L.layerGroup());
+  const customPcSubRef = useRef<L.LayerGroup>(L.layerGroup());
+  const customReconSubRef = useRef<L.LayerGroup>(L.layerGroup());
+
   const [layerVisibility, setLayerVisibility] = useState<Record<MapLayerKey, boolean>>({
     gridOverlay: true,
     blueCrates: true,
@@ -283,8 +459,7 @@ export function TacticalMapPanel({
     y: number;
     grid: string;
   } | null>(null);
-  const [zoomLevel, setZoomLevel] = useState(14);
-  const [viewportVersion, setViewportVersion] = useState(0);
+  const [zoomTier, setZoomTier] = useState<ZoomTier>(0);
   const [capturedCoords, setCapturedCoords] = useState<{ x: number; y: number } | null>(null);
   const [editingPin, setEditingPin] = useState<CustomMapPin | null>(null);
   const [repositioningPin, setRepositioningPin] = useState(false);
@@ -302,13 +477,23 @@ export function TacticalMapPanel({
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const cursorGridRef = useRef<HTMLElement | null>(null);
   const cursorMetersRef = useRef<HTMLSpanElement | null>(null);
+  const zoomReadoutRef = useRef<HTMLSpanElement | null>(null);
   const cursorRafRef = useRef<number | null>(null);
+  const subLocRafRef = useRef<number | null>(null);
   const pendingCursorRef = useRef<{ x: number; y: number } | null>(null);
+  const lastContainerSizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
+  const lastFlownMaterialKeyRef = useRef<string | null>(null);
 
   const markerByPinIdRef = useRef<Map<string, L.Marker>>(new Map());
+  const subLocationMarkerCacheRef = useRef<
+    Map<string, { marker: L.Marker; dim: boolean }>
+  >(new Map());
   const pendingFocusPinRef = useRef<{ id: string; moved: boolean } | null>(null);
-  const zoomLevelRef = useRef(zoomLevel);
-  zoomLevelRef.current = zoomLevel;
+  const zoomLevelRef = useRef(14);
+  const zoomTierRef = useRef<ZoomTier>(0);
+  zoomTierRef.current = zoomTier;
+  const layerVisibilityRef = useRef(layerVisibility);
+  layerVisibilityRef.current = layerVisibility;
 
   useEffect(() => {
     if (preselectedPinMaterialId && !editingPin) {
@@ -413,31 +598,51 @@ export function TacticalMapPanel({
   const startEditingPinRef = useRef(startEditingPin);
   startEditingPinRef.current = startEditingPin;
 
-  const openZoneBriefing = (poi: LamangPoi) => {
-    onCloseInspect();
-    onCloseInspectTask();
-    onCloseInspectKey?.();
-    setInspectedPoi(poi);
-    setMapSearchOpen(false);
-    setJumpOpen(false);
-    setLayersOpen(false);
-  };
+  const openZoneBriefing = useCallback(
+    (poi: LamangPoi) => {
+      onCloseInspect();
+      onCloseInspectTask();
+      onCloseInspectKey?.();
+      setInspectedPoi(poi);
+      setMapSearchOpen(false);
+      setJumpOpen(false);
+      setLayersOpen(false);
+    },
+    [onCloseInspect, onCloseInspectTask, onCloseInspectKey]
+  );
+  const openZoneBriefingRef = useRef(openZoneBriefing);
+  openZoneBriefingRef.current = openZoneBriefing;
 
   const safeFlyTo = useCallback(
-    (x: number, y: number, zoom = 16, duration = 0.65) => {
+    (x: number, y: number, zoom = 16) => {
       if (!Number.isFinite(x) || !Number.isFinite(y)) return;
       const attempt = (retriesLeft: number) => {
         const m = mapRef.current;
         const el = mapContainerRef.current;
         if (!m || !el) return;
-        if (el.clientWidth > 0 && el.clientHeight > 0) {
-          m.invalidateSize({ animate: false });
+        const w = el.clientWidth;
+        const h = el.clientHeight;
+        if (w > 0 && h > 0) {
+          if (
+            w !== lastContainerSizeRef.current.w ||
+            h !== lastContainerSizeRef.current.h
+          ) {
+            lastContainerSizeRef.current = { w, h };
+            m.invalidateSize({ animate: false });
+          }
           const target = toLatLng(x, y);
           const cur = m.getCenter();
           if (!Number.isFinite(cur.lat) || !Number.isFinite(cur.lng)) {
             m.setView(target, zoom, { animate: false });
           } else {
-            m.flyTo(target, zoom, { duration });
+            const curM = fromLatLng(cur);
+            const distM = Math.hypot(x - curM.x, y - curM.y);
+            const zoomDelta = Math.abs(m.getZoom() - zoom);
+            if (distM > 5500 || zoomDelta > 3.25) {
+              m.setView(target, zoom, { animate: true, duration: 0.24 });
+            } else {
+              m.flyTo(target, zoom, { duration: 0.28, easeLinearity: 0.72 });
+            }
           }
         } else if (retriesLeft > 0) {
           requestAnimationFrame(() => attempt(retriesLeft - 1));
@@ -466,6 +671,107 @@ export function TacticalMapPanel({
     attempt(6);
   }, []);
 
+  const hasFocusedMaterial =
+    !!inspectedMaterial || Object.values(tickedMapMaterials).some(Boolean);
+  const hasFocusedMaterialRef = useRef(hasFocusedMaterial);
+  hasFocusedMaterialRef.current = hasFocusedMaterial;
+
+  const syncSubLocations = useCallback(() => {
+    const map = mapRef.current;
+    const subGroup = layersRef.current.subLocations;
+    const cache = subLocationMarkerCacheRef.current;
+    const z = zoomLevelRef.current;
+
+    if (!map || !layerVisibilityRef.current.subLocations || z < 15.2) {
+      cache.forEach(({ marker }) => {
+        if (subGroup.hasLayer(marker)) subGroup.removeLayer(marker);
+      });
+      return;
+    }
+
+    let paddedBounds: L.LatLngBounds | null = null;
+    try {
+      paddedBounds = map.getBounds().pad(0.35);
+    } catch {
+      paddedBounds = null;
+    }
+
+    const dimChip = hasFocusedMaterialRef.current && z < 17;
+
+    SUB_POIS_WITH_LL.forEach(({ poi, latLng }) => {
+      const shouldShow =
+        z >= poi.minZoom && (!paddedBounds || paddedBounds.contains(latLng));
+      let cached = cache.get(poi.id);
+
+      if (!shouldShow) {
+        if (cached && subGroup.hasLayer(cached.marker)) {
+          subGroup.removeLayer(cached.marker);
+        }
+        return;
+      }
+
+      if (!cached || cached.dim !== dimChip) {
+        if (cached && subGroup.hasLayer(cached.marker)) {
+          subGroup.removeLayer(cached.marker);
+        }
+        const opacity = dimChip ? 0.65 : 0.96;
+        const isT4Sub = poi.tier === "Tier 4";
+        const dotColor = isT4Sub ? "#f87171" : "#38bdf8";
+        const borderColor = isT4Sub
+          ? "rgba(248, 113, 113, 0.42)"
+          : "rgba(148, 163, 184, 0.34)";
+        const textColor = isT4Sub ? "#fee2e2" : "#f1f5f9";
+
+        const marker = L.marker(latLng, {
+          zIndexOffset: 240,
+          icon: L.divIcon({
+            className: "gzw-map-label",
+            html: `<div class="gzw-subpoi-chip" style="
+              display: inline-flex;
+              align-items: center;
+              gap: 6px;
+              transform: translate(-8px, -50%);
+              white-space: nowrap;
+              opacity: ${opacity};
+              padding: 3px 8px;
+              border-radius: 7px;
+              background: rgba(9, 13, 20, 0.95);
+              border: 1px solid ${borderColor};
+              box-shadow: 0 3px 12px rgba(0, 0, 0, 0.8);
+              cursor: pointer;
+            ">
+              <span style="
+                width: 6px;
+                height: 6px;
+                border-radius: 9999px;
+                background: ${dotColor};
+                box-shadow: 0 0 6px ${dotColor};
+                flex-shrink: 0;
+              "></span>
+              <span style="
+                font-family: 'Manrope', system-ui, sans-serif;
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: 0.01em;
+                color: ${textColor};
+              ">${escapeHtml(poi.name)}</span>
+            </div>`,
+            iconSize: [0, 0],
+          }),
+        });
+        marker.on("click", () => openZoneBriefingRef.current(poi));
+        cached = { marker, dim: dimChip };
+        cache.set(poi.id, cached);
+      }
+
+      if (!subGroup.hasLayer(cached.marker)) {
+        subGroup.addLayer(cached.marker);
+      }
+    });
+  }, []);
+  const syncSubLocationsRef = useRef(syncSubLocations);
+  syncSubLocationsRef.current = syncSubLocations;
+
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
@@ -473,6 +779,7 @@ export function TacticalMapPanel({
       toLatLng(MAP_EXTENT.minX - 1800, MAP_EXTENT.minY - 1200),
       toLatLng(MAP_EXTENT.maxX + 1800, MAP_EXTENT.maxY + 1200)
     );
+    const tileBounds = L.latLngBounds(toLatLng(0, 0), toLatLng(14000, 8000));
 
     const map = L.map(mapContainerRef.current, {
       crs: L.CRS.EPSG3857,
@@ -480,9 +787,14 @@ export function TacticalMapPanel({
       maxZoom: 19,
       zoomSnap: 0.25,
       zoomDelta: 0.25,
-      wheelPxPerZoomLevel: 100,
-      wheelDebounceTime: 25,
+      wheelPxPerZoomLevel: 85,
+      wheelDebounceTime: 16,
+      inertia: true,
+      inertiaDeceleration: 3200,
+      inertiaMaxSpeed: 2200,
+      fadeAnimation: false,
       zoomAnimation: true,
+      zoomAnimationThreshold: 4,
       markerZoomAnimation: true,
       maxBounds,
       maxBoundsViscosity: 0.9,
@@ -492,48 +804,103 @@ export function TacticalMapPanel({
 
     L.control.zoom({ position: "bottomleft" }).addTo(map);
 
-    let disposed = false;
-    const attachTileLayer = (tileUrl: string) => {
-      if (disposed) return;
-      L.tileLayer(tileUrl, {
-        minZoom: 13.5,
-        maxZoom: 19,
-        minNativeZoom: 14,
-        maxNativeZoom: 19,
-        tileSize: 256,
-        bounds: L.latLngBounds(toLatLng(0, 0), toLatLng(14000, 8000)),
-        updateWhenZooming: false,
-        keepBuffer: 6,
-      }).addTo(map);
-    };
+    const tileUrl = isStaticHostingEnvironment()
+      ? LAMANG_DIRECT_TILE_URL
+      : LAMANG_TILE_URL;
 
-    if (isStaticHostingEnvironment()) {
-      attachTileLayer(LAMANG_DIRECT_TILE_URL);
-    } else {
-      fetch("/api/gzw/health", { signal: AbortSignal.timeout(1200) })
-        .then((res) => {
-          const ct = res.headers.get("content-type") || "";
-          attachTileLayer(
-            res.ok && ct.includes("application/json")
-              ? LAMANG_TILE_URL
-              : LAMANG_DIRECT_TILE_URL
-          );
-        })
-        .catch(() => {
-          attachTileLayer(LAMANG_DIRECT_TILE_URL);
-        });
+    // Layer A: Persistent Z14-Z15 terrain underlay (always kept loaded underneath so black squares never appear)
+    L.tileLayer(tileUrl, {
+      minZoom: 13.5,
+      maxZoom: 19,
+      minNativeZoom: 14,
+      maxNativeZoom: 15,
+      tileSize: 256,
+      bounds: tileBounds,
+      updateWhenIdle: false,
+      updateWhenZooming: true,
+      keepBuffer: 14,
+      errorTileUrl: TRANSPARENT_TILE_DATA_URI,
+      zIndex: 1,
+    }).addTo(map);
+
+    // Layer B: Crisp Z16-Z19 detail layer composited directly over underlay
+    L.tileLayer(tileUrl, {
+      minZoom: 15.25,
+      maxZoom: 19,
+      minNativeZoom: 16,
+      maxNativeZoom: 19,
+      tileSize: 256,
+      bounds: tileBounds,
+      updateWhenIdle: false,
+      updateWhenZooming: true,
+      keepBuffer: 10,
+      errorTileUrl: TRANSPARENT_TILE_DATA_URI,
+      zIndex: 2,
+    }).addTo(map);
+
+    // Hardware Canvas 100m / 500m / 1000m Grid Overlay
+    const gridCanvasLayer = new TacticalGridCanvasLayer(
+      map,
+      () => zoomLevelRef.current
+    );
+    gridCanvasLayerRef.current = gridCanvasLayer;
+    if (layerVisibilityRef.current.gridOverlay) {
+      gridCanvasLayer.addTo(map);
     }
 
     map.fitBounds(L.latLngBounds(toLatLng(2800, 850), toLatLng(11200, 7300)));
-    setZoomLevel(map.getZoom());
+    const initialZoom = map.getZoom();
+    zoomLevelRef.current = initialZoom;
+    setZoomTier(getZoomTier(initialZoom));
+    if (zoomReadoutRef.current) {
+      zoomReadoutRef.current.textContent = `Z${initialZoom.toFixed(1)}`;
+    }
+    lastContainerSizeRef.current = {
+      w: mapContainerRef.current.clientWidth,
+      h: mapContainerRef.current.clientHeight,
+    };
+
+    // Mount static + dynamic sub-groups inside parent layers
+    staticCratesSubRef.current.addTo(layersRef.current.blueCrates);
+    customCratesSubRef.current.addTo(layersRef.current.blueCrates);
+    staticElectronicsSubRef.current.addTo(layersRef.current.pcSpawns);
+    customPcSubRef.current.addTo(layersRef.current.pcSpawns);
+    customReconSubRef.current.addTo(layersRef.current.customPins);
 
     (Object.keys(layersRef.current) as MapLayerKey[]).forEach((key) => {
-      layersRef.current[key].addTo(map);
+      if (key !== "gridOverlay") {
+        layersRef.current[key].addTo(map);
+      }
     });
     taskPinsLayerRef.current.addTo(map);
     keyFocusLayerRef.current.addTo(map);
     measureLayerRef.current.addTo(map);
     navRouteLayerRef.current.addTo(map);
+
+    // Idle prefetch of the 30 Zoom-14 overview tiles covering entire island
+    let disposed = false;
+    const scheduleIdle =
+      typeof window !== "undefined" && "requestIdleCallback" in window
+        ? (cb: () => void) =>
+            (
+              window as Window & {
+                requestIdleCallback: (fn: () => void) => number;
+              }
+            ).requestIdleCallback(cb)
+        : (cb: () => void) => window.setTimeout(cb, 250);
+
+    scheduleIdle(() => {
+      if (disposed) return;
+      for (let tx = 8192; tx <= 8197; tx++) {
+        for (let ty = 8188; ty <= 8192; ty++) {
+          const img = new Image();
+          img.src = tileUrl
+            .replace("{z}", "14")
+            .replace("{x}", String(tx))
+            .replace("{y}", String(ty));
+        }
+      }
+    });
 
     map.on("mousemove", (e: L.LeafletMouseEvent) => {
       pendingCursorRef.current = fromLatLng(e.latlng);
@@ -560,17 +927,43 @@ export function TacticalMapPanel({
       setContextMenu(null);
     });
 
+    const scheduleSubLocSync = () => {
+      if (subLocRafRef.current !== null) return;
+      subLocRafRef.current = requestAnimationFrame(() => {
+        subLocRafRef.current = null;
+        syncSubLocationsRef.current();
+      });
+    };
+
+    map.on("zoom", () => {
+      const z = map.getZoom();
+      zoomLevelRef.current = z;
+      if (zoomReadoutRef.current) {
+        zoomReadoutRef.current.textContent = `Z${z.toFixed(1)}`;
+      }
+    });
+
     map.on("zoomend", () => {
-      setZoomLevel(map.getZoom());
-      setViewportVersion((v) => v + 1);
+      const z = map.getZoom();
+      zoomLevelRef.current = z;
+      if (zoomReadoutRef.current) {
+        zoomReadoutRef.current.textContent = `Z${z.toFixed(1)}`;
+      }
+      const nextTier = getZoomTier(z);
+      if (nextTier !== zoomTierRef.current) {
+        zoomTierRef.current = nextTier;
+        setZoomTier(nextTier);
+        gridCanvasLayerRef.current?.redraw();
+      }
+      scheduleSubLocSync();
     });
 
     map.on("moveend", () => {
-      setViewportVersion((v) => v + 1);
+      scheduleSubLocSync();
     });
 
     map.on("resize", () => {
-      setViewportVersion((v) => v + 1);
+      scheduleSubLocSync();
     });
 
     map.on("contextmenu", (e: L.LeafletMouseEvent) => {
@@ -647,8 +1040,13 @@ export function TacticalMapPanel({
         cancelAnimationFrame(cursorRafRef.current);
         cursorRafRef.current = null;
       }
+      if (subLocRafRef.current !== null) {
+        cancelAnimationFrame(subLocRafRef.current);
+        subLocRafRef.current = null;
+      }
       map.remove();
       mapRef.current = null;
+      gridCanvasLayerRef.current = null;
     };
   }, [onNotify]);
 
@@ -658,8 +1056,9 @@ export function TacticalMapPanel({
       const m = mapRef.current;
       const el = mapContainerRef.current;
       if (!m || !el || el.clientWidth <= 0 || el.clientHeight <= 0) return;
+      lastContainerSizeRef.current = { w: el.clientWidth, h: el.clientHeight };
       m.invalidateSize({ animate: false });
-      setViewportVersion((v) => v + 1);
+      syncSubLocationsRef.current();
     };
     const raf = requestAnimationFrame(syncIfVisible);
     const t = setTimeout(syncIfVisible, 140);
@@ -672,7 +1071,16 @@ export function TacticalMapPanel({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    const gridLayer = gridCanvasLayerRef.current;
+    if (gridLayer) {
+      if (layerVisibility.gridOverlay) {
+        if (!map.hasLayer(gridLayer)) gridLayer.addTo(map);
+      } else {
+        if (map.hasLayer(gridLayer)) map.removeLayer(gridLayer);
+      }
+    }
     (Object.keys(layersRef.current) as MapLayerKey[]).forEach((key) => {
+      if (key === "gridOverlay") return;
       const group = layersRef.current[key];
       if (layerVisibility[key]) {
         if (!map.hasLayer(group)) group.addTo(map);
@@ -680,103 +1088,8 @@ export function TacticalMapPanel({
         if (map.hasLayer(group)) map.removeLayer(group);
       }
     });
+    syncSubLocationsRef.current();
   }, [layerVisibility]);
-
-  // Render crisp 100m In-Game Grid Lines & Coordinate Labels strictly inside visible padded viewport
-  useEffect(() => {
-    const map = mapRef.current;
-    const gridGroup = layersRef.current.gridOverlay;
-    gridGroup.clearLayers();
-    if (!map || !layerVisibility.gridOverlay) return;
-
-    const bounds = map.getBounds();
-    const sw = fromLatLng(bounds.getSouthWest());
-    const ne = fromLatLng(bounds.getNorthEast());
-
-    const pad = zoomLevel >= 16.5 ? 400 : zoomLevel >= 15 ? 800 : 1500;
-    const step = zoomLevel >= 15 ? 100 : zoomLevel >= 14.5 ? 500 : 1000;
-
-    const minX = Math.max(
-      MAP_EXTENT.minX,
-      Math.floor((sw.x - pad) / step) * step
-    );
-    const maxX = Math.min(
-      MAP_EXTENT.maxX,
-      Math.ceil((ne.x + pad) / step) * step
-    );
-    const minY = Math.max(
-      MAP_EXTENT.minY,
-      Math.floor((sw.y - pad) / step) * step
-    );
-    const maxY = Math.min(
-      MAP_EXTENT.maxY,
-      Math.ceil((ne.y + pad) / step) * step
-    );
-
-    if (maxX <= minX || maxY <= minY) return;
-
-    for (let x = minX; x <= maxX; x += step) {
-      const isMajor = x % 500 === 0;
-      L.polyline([toLatLng(x, minY), toLatLng(x, maxY)], {
-        renderer: vectorRendererRef.current,
-        color: isMajor ? "#e5a93c" : "#cbd5e1",
-        weight: isMajor ? 1.2 : 0.8,
-        opacity: isMajor ? 0.3 : zoomLevel >= 15 ? 0.18 : 0.2,
-        interactive: false,
-      }).addTo(gridGroup);
-    }
-
-    for (let y = minY; y <= maxY; y += step) {
-      const isMajor = y % 500 === 0;
-      L.polyline([toLatLng(minX, y), toLatLng(maxX, y)], {
-        renderer: vectorRendererRef.current,
-        color: isMajor ? "#e5a93c" : "#cbd5e1",
-        weight: isMajor ? 1.2 : 0.8,
-        opacity: isMajor ? 0.3 : zoomLevel >= 15 ? 0.18 : 0.2,
-        interactive: false,
-      }).addTo(gridGroup);
-    }
-
-    // Non-blocking grid square labels (1000m overview -> 500m -> 200m -> every 100m square at close zoom)
-    const labelStep =
-      zoomLevel >= 17.5
-        ? 100
-        : zoomLevel >= 16.5
-          ? 200
-          : zoomLevel >= 14.5
-            ? 500
-            : 1000;
-    const startLX = Math.max(MAP_EXTENT.minX, Math.floor(Math.max(sw.x, 0) / labelStep) * labelStep);
-    const endLX = Math.min(MAP_EXTENT.maxX - 100, Math.ceil(Math.min(ne.x, MAP_EXTENT.maxX) / labelStep) * labelStep);
-    const startLY = Math.max(MAP_EXTENT.minY, Math.floor(Math.max(sw.y, 0) / labelStep) * labelStep);
-    const endLY = Math.min(MAP_EXTENT.maxY - 100, Math.ceil(Math.min(ne.y, MAP_EXTENT.maxY) / labelStep) * labelStep);
-
-    let labelCount = 0;
-    for (let x = startLX; x <= endLX && labelCount < 200; x += labelStep) {
-      for (let y = startLY; y <= endLY && labelCount < 200; y += labelStep) {
-        labelCount += 1;
-        const gridStr = formatGridSquare(x + 10, y + 10);
-        L.marker(toLatLng(x + 10, y + 88), {
-          interactive: false,
-          keyboard: false,
-          zIndexOffset: 50,
-          icon: L.divIcon({
-            className: "gzw-grid-coord-label",
-            html: `<div style="
-              pointer-events:none;
-              font-family:'JetBrains Mono',monospace;
-              font-size:${zoomLevel >= 15 ? "9.5px" : "10px"};
-              font-weight:600;
-              color:rgba(241, 245, 249, ${zoomLevel >= 15 ? "0.56" : "0.42"});
-              text-shadow:0 1px 3px rgba(0,0,0,0.95);
-              white-space:nowrap;
-            ">${gridStr}</div>`,
-            iconSize: [0, 0],
-          }),
-        }).addTo(gridGroup);
-      }
-    }
-  }, [zoomLevel, viewportVersion, layerVisibility.gridOverlay]);
 
   const effectiveNavOrigin = useMemo<NavEndpoint | null>(() => {
     if (!navTarget) return null;
@@ -880,9 +1193,18 @@ export function TacticalMapPanel({
   }, [inspectedMaterial, inspectedLookup, customPins]);
 
   useEffect(() => {
-    if (inspectedMaterial && inspectedSpawnPoints.length > 0 && mapRef.current) {
+    if (!inspectedMaterial) {
+      lastFlownMaterialKeyRef.current = null;
+      return;
+    }
+    if (
+      inspectedMaterial.key !== lastFlownMaterialKeyRef.current &&
+      inspectedSpawnPoints.length > 0 &&
+      mapRef.current
+    ) {
+      lastFlownMaterialKeyRef.current = inspectedMaterial.key;
       const first = inspectedSpawnPoints[0];
-      safeFlyTo(first.x, first.y, 16, 0.65);
+      safeFlyTo(first.x, first.y, 16);
     }
   }, [inspectedMaterial, inspectedSpawnPoints, safeFlyTo]);
 
@@ -928,7 +1250,7 @@ export function TacticalMapPanel({
     if (mapRef.current) {
       if (inspectedTask.exactCoords.length > 0) {
         const firstCoord = inspectedTask.exactCoords[0];
-        safeFlyTo(firstCoord.x, firstCoord.y, 16.5, 0.65);
+        safeFlyTo(firstCoord.x, firstCoord.y, 16.5);
       } else if (inspectedTask.matchedPois.length > 0) {
         const starterTown =
           selectedFaction !== "ALL"
@@ -941,7 +1263,7 @@ export function TacticalMapPanel({
                 p.name === starterTown || p.parentRegion === starterTown
             )) ||
           inspectedTask.matchedPois[0];
-        safeFlyTo(preferred.x, preferred.y, 16, 0.65);
+        safeFlyTo(preferred.x, preferred.y, 16);
       } else {
         fitIslandView();
       }
@@ -973,7 +1295,7 @@ export function TacticalMapPanel({
       marker.addTo(layer);
 
       if (mapRef.current) {
-        safeFlyTo(inspectedKey.x, inspectedKey.y, 17, 0.65);
+        safeFlyTo(inspectedKey.x, inspectedKey.y, 17);
       }
       return;
     }
@@ -1062,9 +1384,9 @@ export function TacticalMapPanel({
         )
       : null;
     if (focusedStep && focusedStep.coords) {
-      safeFlyTo(focusedStep.coords.x, focusedStep.coords.y, 17, 0.65);
+      safeFlyTo(focusedStep.coords.x, focusedStep.coords.y, 17);
     } else {
-      safeFlyTo(inspectedPuzzleDoor.x, inspectedPuzzleDoor.y, 16.5, 0.65);
+      safeFlyTo(inspectedPuzzleDoor.x, inspectedPuzzleDoor.y, 16.5);
     }
   }, [inspectedPuzzleDoor, inspectedPuzzleStepId, inspectedKey, safeFlyTo]);
 
@@ -1124,97 +1446,28 @@ export function TacticalMapPanel({
     }
   }, [measurePoints]);
 
-  // Render viewport-culled Sub-Locations separately so pan/zoom never rebuilds static layers
+  // Sync imperative viewport-culled Sub-Locations whenever zoomTier, focus state, or visibility changes
   useEffect(() => {
-    const subGroup = layersRef.current.subLocations;
-    subGroup.clearLayers();
-    if (zoomLevel < 15.2) return;
+    syncSubLocations();
+  }, [zoomTier, hasFocusedMaterial, layerVisibility.subLocations, syncSubLocations]);
 
-    const hasFocusedMaterial =
-      !!inspectedMaterial || Object.values(tickedMapMaterials).some(Boolean);
-    let paddedBounds: L.LatLngBounds | null = null;
-    try {
-      if (mapRef.current) {
-        paddedBounds = mapRef.current.getBounds().pad(0.35);
-      }
-    } catch {
-      paddedBounds = null;
-    }
-
-    LAMANG_POIS.forEach((poi) => {
-      if (poi.kind !== "sublocation" || zoomLevel < poi.minZoom) return;
-      const ll = toLatLng(poi.x, poi.y);
-      if (paddedBounds && !paddedBounds.contains(ll)) return;
-
-      const opacity = hasFocusedMaterial && zoomLevel < 17 ? 0.65 : 0.96;
-      const isT4Sub = poi.tier === "Tier 4";
-      const dotColor = isT4Sub ? "#f87171" : "#38bdf8";
-      const borderColor = isT4Sub
-        ? "rgba(248, 113, 113, 0.42)"
-        : "rgba(148, 163, 184, 0.34)";
-      const textColor = isT4Sub ? "#fee2e2" : "#f1f5f9";
-
-      const marker = L.marker(ll, {
-        zIndexOffset: 240,
-        icon: L.divIcon({
-          className: "gzw-map-label",
-          html: `<div class="gzw-subpoi-chip" style="
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transform: translate(-8px, -50%);
-            white-space: nowrap;
-            opacity: ${opacity};
-            padding: 3px 8px;
-            border-radius: 7px;
-            background: rgba(9, 13, 20, 0.94);
-            border: 1px solid ${borderColor};
-            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.8);
-            cursor: pointer;
-          ">
-            <span style="
-              width: 6px;
-              height: 6px;
-              border-radius: 9999px;
-              background: ${dotColor};
-              box-shadow: 0 0 6px ${dotColor};
-              flex-shrink: 0;
-            "></span>
-            <span style="
-              font-family: 'Manrope', system-ui, sans-serif;
-              font-size: 11px;
-              font-weight: 600;
-              letter-spacing: 0.01em;
-              color: ${textColor};
-            ">${escapeHtml(poi.name)}</span>
-          </div>`,
-          iconSize: [0, 0],
-        }),
-      });
-      marker.on("click", () => openZoneBriefing(poi));
-      marker.addTo(subGroup);
-    });
-  }, [zoomLevel, viewportVersion, inspectedMaterial, tickedMapMaterials]);
-
-  // Render clean, borderless, zoom-gated static Update 0.5 markers (no rebuild on pan)
+  // Effect A: Primary POIs, Tier 4 Regions, Bases, COPs, LZs (only rebuilds when zoomTier or faction changes)
   useEffect(() => {
     const groups = layersRef.current;
-    (Object.keys(groups) as MapLayerKey[]).forEach((k) => {
-      if (k !== "gridOverlay" && k !== "subLocations") groups[k].clearLayers();
-    });
+    groups.poiLabels.clearLayers();
+    groups.copsAndLzs.clearLayers();
 
-    const hasFocusedMaterial =
-      !!inspectedMaterial || Object.values(tickedMapMaterials).some(Boolean);
+    const z = zoomLevelRef.current;
+    const isOverview = zoomTier === 0;
+    const isCloseZoom = zoomTier >= 5;
+    const isExclusionFade = zoomTier >= 3 && z >= 16;
 
-    // 1. Primary POIs, Tier 4 Regions, Bases, COPs, LZs (Sub-locations handled above)
-    LAMANG_POIS.forEach((poi) => {
-      if (poi.kind === "sublocation" || zoomLevel < poi.minZoom) return;
+    NON_SUB_POIS.forEach((poi) => {
+      if (z < poi.minZoom) return;
       const ll = toLatLng(poi.x, poi.y);
-      const grid = formatGridSquare(poi.x, poi.y);
 
       if (poi.kind === "base" || poi.kind === "tier4" || poi.kind === "major") {
-        // Softly fade major region plaques when deeply zoomed into building-level detail
-        const fadeAtCloseZoom = zoomLevel >= 17.5 ? 0.38 : 1;
+        const fadeAtCloseZoom = isCloseZoom ? 0.38 : 1;
         const isTier4 = poi.kind === "tier4";
         const isBase = poi.kind === "base";
         const isTier3 = poi.tier === "Tier 3";
@@ -1240,15 +1493,16 @@ export function TacticalMapPanel({
                   ? "rgba(229, 169, 60, 0.52)"
                   : "rgba(203, 213, 225, 0.28)";
 
-        const dotColor = isOwnFob && activeFactionInfo
-          ? activeFactionInfo.color
-          : isTier4
-            ? "#ef4444"
-            : isBase
-              ? "#60a5fa"
-              : isTier3
-                ? "#e5a93c"
-                : "#94a3b8";
+        const dotColor =
+          isOwnFob && activeFactionInfo
+            ? activeFactionInfo.color
+            : isTier4
+              ? "#ef4444"
+              : isBase
+                ? "#60a5fa"
+                : isTier3
+                  ? "#e5a93c"
+                  : "#94a3b8";
 
         const titleColor = isExclusionCenter
           ? "#fca5a5"
@@ -1260,33 +1514,33 @@ export function TacticalMapPanel({
                 ? "#dbeafe"
                 : "#f8fafc";
 
-        const tierColor = isOwnFob && activeFactionInfo
-          ? activeFactionInfo.color
-          : isTier4
-            ? "#fca5a5"
-            : isBase
-              ? "#93c5fd"
-              : isTier3
-                ? "#fbbf24"
-                : "#cbd5e1";
+        const tierColor =
+          isOwnFob && activeFactionInfo
+            ? activeFactionInfo.color
+            : isTier4
+              ? "#fca5a5"
+              : isBase
+                ? "#93c5fd"
+                : isTier3
+                  ? "#fbbf24"
+                  : "#cbd5e1";
 
         const tierText = isOwnFob ? "YOUR FOB" : poi.tier;
         const plaqueOpacity = isRivalFob
           ? Math.min(fadeAtCloseZoom, 0.48)
           : fadeAtCloseZoom;
 
-        const overviewOffsetTransform =
-          zoomLevel < 14.5
-            ? poi.name === "Hunter's Paradise"
-              ? "translate(-100%, -92%)"
-              : poi.name === "Midnight Sapphire"
-                ? "translate(-10%, -18%)"
-                : poi.name === "Sawmill"
-                  ? "translate(-100%, -95%)"
-                  : poi.name === "RLSL-1 Radio Observatory"
-                    ? "translate(-26%, 16%)"
-                    : "translate(-50%, -50%)"
-            : "translate(-50%, -50%)";
+        const overviewOffsetTransform = isOverview
+          ? poi.name === "Hunter's Paradise"
+            ? "translate(-100%, -92%)"
+            : poi.name === "Midnight Sapphire"
+              ? "translate(-10%, -18%)"
+              : poi.name === "Sawmill"
+                ? "translate(-100%, -95%)"
+                : poi.name === "RLSL-1 Radio Observatory"
+                  ? "translate(-26%, 16%)"
+                  : "translate(-50%, -50%)"
+          : "translate(-50%, -50%)";
 
         const marker = L.marker(ll, {
           zIndexOffset: isOwnFob ? 360 : isTier4 ? 320 : isBase ? 260 : 280,
@@ -1297,7 +1551,7 @@ export function TacticalMapPanel({
                   transform: translate(-50%, -50%);
                   text-align: center;
                   white-space: nowrap;
-                  opacity: ${zoomLevel >= 16 ? 0.5 : 0.85};
+                  opacity: ${isExclusionFade ? 0.5 : 0.85};
                   cursor: pointer;
                 ">
                   <div style="
@@ -1321,7 +1575,7 @@ export function TacticalMapPanel({
                   transform: ${overviewOffsetTransform};
                   white-space: nowrap;
                   opacity: ${plaqueOpacity};
-                  padding: ${zoomLevel < 14.5 ? "2.5px 7.5px" : "4px 10px"};
+                  padding: ${isOverview ? "2.5px 7.5px" : "4px 10px"};
                   border-radius: 8px;
                   background: rgba(9, 13, 20, 0.94);
                   border: 1px solid ${borderColor};
@@ -1338,7 +1592,7 @@ export function TacticalMapPanel({
                   "></span>
                   <span style="
                     font-family: 'Outfit', system-ui, sans-serif;
-                    font-size: ${zoomLevel < 14.5 ? (isTier4 ? "11.5px" : "11px") : isTier4 ? "13px" : "12.5px"};
+                    font-size: ${isOverview ? (isTier4 ? "11.5px" : "11px") : isTier4 ? "13px" : "12.5px"};
                     font-weight: 600;
                     letter-spacing: 0.01em;
                     color: ${titleColor};
@@ -1358,7 +1612,7 @@ export function TacticalMapPanel({
           }),
         });
 
-        marker.on("click", () => openZoneBriefing(poi));
+        marker.on("click", () => openZoneBriefingRef.current(poi));
         marker.addTo(groups.poiLabels);
       } else if (poi.kind === "cop") {
         const shortName = poi.name.replace(/^Outpost\s+/i, "");
@@ -1392,7 +1646,7 @@ export function TacticalMapPanel({
             iconSize: [0, 0],
           }),
         });
-        marker.on("click", () => openZoneBriefing(poi));
+        marker.on("click", () => openZoneBriefingRef.current(poi));
         marker.addTo(groups.copsAndLzs);
       } else if (poi.kind === "lz") {
         const marker = L.marker(ll, {
@@ -1430,35 +1684,47 @@ export function TacticalMapPanel({
             iconSize: [0, 0],
           }),
         });
-        marker.on("click", () => openZoneBriefing(poi));
+        marker.on("click", () => openZoneBriefingRef.current(poi));
         marker.addTo(groups.copsAndLzs);
       }
     });
+  }, [zoomTier, selectedFaction]);
 
-    // 2. Blue-Planked Building Material Crates (96 Tier 2-3 spawns — shown cleanly on zoom >= 15)
-    if (zoomLevel >= 15) {
-      BLUE_CRATES_05.forEach((crate) => {
-        const crateTier = crate.tier ?? 2;
-        const marker = L.marker(toLatLng(crate.x, crate.y), {
-          icon: createDotIcon(crateTier >= 3 ? "#2563eb" : "#3b82f6", zoomLevel >= 16.5 ? 10 : 7),
-        });
-        marker.bindPopup(
-          `<div style="min-width:195px;">
-            <div style="font-size:10px;font-family:monospace;color:#60a5fa;font-weight:700;">BUILDING MATERIAL CRATE (TIER ${crateTier})</div>
-            <div style="font-size:13px;font-weight:600;margin-top:2px;">${escapeHtml(crate.poi)}</div>
-            <div style="font-size:11px;color:#cbd5e1;margin-top:2px;">${
-              crateTier >= 3
-                ? "Stainless Steel Sheet · Plastics · Steel · Construction · Plumbing"
-                : "Plastics · Steel · Wood · Plumbing · Construction"
-            }</div>
-            <div style="font-family:monospace;font-size:10px;color:#94a3b8;margin-top:4px;">Grid ${formatGridSquare(crate.x, crate.y)} · ${crate.x}, ${crate.y}</div>
-          </div>`
-        );
-        marker.addTo(groups.blueCrates);
+  // Effect B: Blue-Planked Building Material Crates (96 spawns — only rebuilds at zoomTier 2 / 4 thresholds)
+  useEffect(() => {
+    const cratesGroup = staticCratesSubRef.current;
+    cratesGroup.clearLayers();
+    if (zoomTier < 2) return;
+
+    const dotSize = zoomTier >= 4 ? 10 : 7;
+    BLUE_CRATES_05.forEach((crate) => {
+      const crateTier = crate.tier ?? 2;
+      const marker = L.marker(toLatLng(crate.x, crate.y), {
+        icon: createDotIcon(crateTier >= 3 ? "#2563eb" : "#3b82f6", dotSize),
       });
-    }
+      marker.bindPopup(
+        `<div style="min-width:195px;">
+          <div style="font-size:10px;font-family:monospace;color:#60a5fa;font-weight:700;">BUILDING MATERIAL CRATE (TIER ${crateTier})</div>
+          <div style="font-size:13px;font-weight:600;margin-top:2px;">${escapeHtml(crate.poi)}</div>
+          <div style="font-size:11px;color:#cbd5e1;margin-top:2px;">${
+            crateTier >= 3
+              ? "Stainless Steel Sheet · Plastics · Steel · Construction · Plumbing"
+              : "Plastics · Steel · Wood · Plumbing · Construction"
+          }</div>
+          <div style="font-family:monospace;font-size:10px;color:#94a3b8;margin-top:4px;">Grid ${formatGridSquare(crate.x, crate.y)} · ${crate.x}, ${crate.y}</div>
+        </div>`
+      );
+      marker.addTo(cratesGroup);
+    });
+  }, [zoomTier >= 2, zoomTier >= 4]);
 
-    // 3. Chemicals & Medical Supplies Areas (20 Chemical + 6 Tier 3-4 Medical)
+  // Effect C: Static Chemicals, Medical & Disassembly Areas (built ONCE on mount)
+  useEffect(() => {
+    const chemGroup = layersRef.current.chemicalAreas;
+    const disGroup = layersRef.current.disassemblySpawns;
+    chemGroup.clearLayers();
+    disGroup.clearLayers();
+
     CHEMICAL_AREAS_05.forEach((chem) => {
       const marker = L.marker(toLatLng(chem.x, chem.y), {
         icon: createTargetPinIcon("#a855f7", "C"),
@@ -1471,7 +1737,7 @@ export function TacticalMapPanel({
           <div style="font-family:monospace;font-size:10px;color:#94a3b8;margin-top:4px;">Grid ${formatGridSquare(chem.x, chem.y)} · ${chem.x}, ${chem.y}</div>
         </div>`
       );
-      marker.addTo(groups.chemicalAreas);
+      marker.addTo(chemGroup);
     });
 
     MEDICAL_AREAS_05.forEach((med) => {
@@ -1486,10 +1752,9 @@ export function TacticalMapPanel({
           <div style="font-family:monospace;font-size:10px;color:#94a3b8;margin-top:4px;">Grid ${formatGridSquare(med.x, med.y)} · ${med.x}, ${med.y}</div>
         </div>`
       );
-      marker.addTo(groups.chemicalAreas);
+      marker.addTo(chemGroup);
     });
 
-    // 4. Disassembly Items (54 exact spawns — UNLRA Field Terminal, IMSI Catcher, Containers, etc.)
     DISASSEMBLY_SPAWNS_05.forEach((dis) => {
       const marker = L.marker(toLatLng(dis.x, dis.y), {
         icon: createTargetPinIcon("#f97316", "D"),
@@ -1502,31 +1767,49 @@ export function TacticalMapPanel({
           <div style="font-family:monospace;font-size:10px;color:#94a3b8;margin-top:4px;">Grid ${formatGridSquare(dis.x, dis.y)} · ${dis.x}, ${dis.y}</div>
         </div>`
       );
-      marker.addTo(groups.disassemblySpawns);
+      marker.addTo(disGroup);
     });
+  }, []);
 
-    // 4b. Electronic Supplies Areas (26 exact Update 0.5 spawns — Trashed Campsites, HQ, Radio Stations)
-    if (zoomLevel >= 14.5 || hasFocusedMaterial) {
-      ELECTRONIC_AREAS_05.forEach((elec) => {
-        const marker = L.marker(toLatLng(elec.x, elec.y), {
-          icon: createTargetPinIcon("#06b6d4", "E"),
-        });
-        marker.bindPopup(
-          `<div style="min-width:195px;">
-            <div style="font-size:10px;font-family:monospace;color:#22d3ee;font-weight:700;">ELECTRONIC SUPPLIES AREA</div>
-            <div style="font-size:13px;font-weight:600;margin-top:2px;">${escapeHtml(elec.name)}</div>
-            <div style="font-size:11px;color:#cbd5e1;margin-top:2px;">Region: ${escapeHtml(elec.poi)} · CPU, Motherboard, RAM, PSU, Circuit Board</div>
-            <div style="font-family:monospace;font-size:10px;color:#94a3b8;margin-top:4px;">Grid ${formatGridSquare(elec.x, elec.y)} · ${elec.x}, ${elec.y}</div>
-          </div>`
-        );
-        marker.addTo(groups.pcSpawns);
+  // Effect D1: Static Electronic Supplies Areas
+  const showPcAreas = zoomTier >= 1 || hasFocusedMaterial;
+  useEffect(() => {
+    const elecGroup = staticElectronicsSubRef.current;
+    elecGroup.clearLayers();
+    if (!showPcAreas) return;
+
+    ELECTRONIC_AREAS_05.forEach((elec) => {
+      const marker = L.marker(toLatLng(elec.x, elec.y), {
+        icon: createTargetPinIcon("#06b6d4", "E"),
       });
-    }
+      marker.bindPopup(
+        `<div style="min-width:195px;">
+          <div style="font-size:10px;font-family:monospace;color:#22d3ee;font-weight:700;">ELECTRONIC SUPPLIES AREA</div>
+          <div style="font-size:13px;font-weight:600;margin-top:2px;">${escapeHtml(elec.name)}</div>
+          <div style="font-size:11px;color:#cbd5e1;margin-top:2px;">Region: ${escapeHtml(elec.poi)} · CPU, Motherboard, RAM, PSU, Circuit Board</div>
+          <div style="font-family:monospace;font-size:10px;color:#94a3b8;margin-top:4px;">Grid ${formatGridSquare(elec.x, elec.y)} · ${elec.x}, ${elec.y}</div>
+        </div>`
+      );
+      marker.addTo(elecGroup);
+    });
+  }, [showPcAreas]);
 
-    // 5. PC Part Spawns & Custom Pins
+  // Effect D2: Custom & Seed Pins
+  useEffect(() => {
+    customCratesSubRef.current.clearLayers();
+    customPcSubRef.current.clearLayers();
+    customReconSubRef.current.clearLayers();
     markerByPinIdRef.current.clear();
+
+    const targetGroupForLayer = (layer: CustomMapPin["layer"]) =>
+      layer === "blueCrates"
+        ? customCratesSubRef.current
+        : layer === "pcSpawns"
+          ? customPcSubRef.current
+          : customReconSubRef.current;
+
     customPins.forEach((pin) => {
-      if (pin.layer === "pcSpawns" && zoomLevel < 14.5 && !hasFocusedMaterial) {
+      if (pin.layer === "pcSpawns" && !showPcAreas) {
         return;
       }
       const style =
@@ -1582,7 +1865,7 @@ export function TacticalMapPanel({
       }).bindPopup(popupEl);
 
       markerByPinIdRef.current.set(pin.id, marker);
-      marker.addTo(groups[pin.layer] || groups.customPins);
+      marker.addTo(targetGroupForLayer(pin.layer));
       if (
         pendingFocusPinRef.current?.id === pin.id &&
         pendingFocusPinRef.current.moved
@@ -1593,8 +1876,13 @@ export function TacticalMapPanel({
         }, 30);
       }
     });
+  }, [customPins, catalog, showPcAreas, onRemovePin]);
 
-    // 6. Ticked / Inspected Hideout Material Spawns (Bright pulsing amber focus)
+  // Effect E: Ticked / Inspected Hideout Material Spawns
+  useEffect(() => {
+    const tickedGroup = layersRef.current.tickedSpawns;
+    tickedGroup.clearLayers();
+
     const groupedSpawns = new Map<
       string,
       { x: number; y: number; title: string; items: { name: string; note: string }[] }
@@ -1650,61 +1938,69 @@ export function TacticalMapPanel({
             .join("")}
         </div>
       `);
-      marker.addTo(groups.tickedSpawns);
+      marker.addTo(tickedGroup);
+    });
+  }, [catalog, tickedMapMaterials, inspectedMaterial, customPins]);
+
+  // Effect F: Locked Door / Key Compound Clusters (zoom >= 15)
+  useEffect(() => {
+    const lockedGroup = layersRef.current.lockedDoors;
+    lockedGroup.clearLayers();
+    if (zoomTier < 2 || keysList.length === 0) return;
+
+    const groupedKeys = new Map<
+      string,
+      { x: number; y: number; place: string; keys: GzwKeyDoorDef[] }
+    >();
+    keysList.forEach((kd) => {
+      const coordKey = `${kd.x},${kd.y}`;
+      if (!groupedKeys.has(coordKey)) {
+        groupedKeys.set(coordKey, {
+          x: kd.x,
+          y: kd.y,
+          place: kd.sublocation || kd.region,
+          keys: [],
+        });
+      }
+      groupedKeys.get(coordKey)!.keys.push(kd);
     });
 
-    // 7. Locked Door / Key Compound Clusters (zoom >= 15)
-    if (zoomLevel >= 15 && keysList.length > 0) {
-      const groupedKeys = new Map<
-        string,
-        { x: number; y: number; place: string; keys: GzwKeyDoorDef[] }
-      >();
-      keysList.forEach((kd) => {
-        const coordKey = `${kd.x},${kd.y}`;
-        if (!groupedKeys.has(coordKey)) {
-          groupedKeys.set(coordKey, {
-            x: kd.x,
-            y: kd.y,
-            place: kd.sublocation || kd.region,
-            keys: [],
-          });
-        }
-        groupedKeys.get(coordKey)!.keys.push(kd);
+    groupedKeys.forEach((cluster) => {
+      const hasKeycard = cluster.keys.some((k) => k.kind === "Keycard");
+      const countLabel =
+        cluster.keys.length > 1 ? `K${cluster.keys.length}` : "K";
+      const marker = L.marker(toLatLng(cluster.x, cluster.y), {
+        icon: createTargetPinIcon(
+          hasKeycard ? "#38bdf8" : "#f59e0b",
+          countLabel,
+          false
+        ),
+        zIndexOffset: 550,
       });
-
-      groupedKeys.forEach((cluster) => {
-        const hasKeycard = cluster.keys.some((k) => k.kind === "Keycard");
-        const countLabel =
-          cluster.keys.length > 1 ? `K${cluster.keys.length}` : "K";
-        const marker = L.marker(toLatLng(cluster.x, cluster.y), {
-          icon: createTargetPinIcon(
-            hasKeycard ? "#38bdf8" : "#f59e0b",
-            countLabel,
-            false
-          ),
-          zIndexOffset: 550,
-        });
-        marker.on("click", () => {
-          if (cluster.keys.length === 1 && onSelectKey) {
+      marker.on("click", () => {
+        if (cluster.keys.length === 1 && onSelectKey) {
+          setInspectedPoi(null);
+          onSelectKey(cluster.keys[0]);
+        } else {
+          const matchedPoi = LAMANG_POIS.find(
+            (p) => p.x === cluster.x && p.y === cluster.y
+          );
+          if (matchedPoi) {
+            openZoneBriefingRef.current(matchedPoi);
+          } else if (onSelectKey) {
             setInspectedPoi(null);
             onSelectKey(cluster.keys[0]);
-          } else {
-            const matchedPoi = LAMANG_POIS.find(
-              (p) => p.x === cluster.x && p.y === cluster.y
-            );
-            if (matchedPoi) {
-              openZoneBriefing(matchedPoi);
-            } else if (onSelectKey) {
-              setInspectedPoi(null);
-              onSelectKey(cluster.keys[0]);
-            }
           }
-        });
-        marker.addTo(groups.lockedDoors);
+        }
       });
-    }
+      marker.addTo(lockedGroup);
+    });
+  }, [zoomTier >= 2, keysList, onSelectKey]);
 
-    // 8. API records with coordinates
+  // Effect G: API records with coordinates
+  useEffect(() => {
+    const apiGroup = layersRef.current.apiLoot;
+    apiGroup.clearLayers();
     apiRecords.forEach((rec) => {
       if (!rec.coords) return;
       const marker = L.marker(toLatLng(rec.coords.x, rec.coords.y), {
@@ -1717,9 +2013,9 @@ export function TacticalMapPanel({
           ${rec.description ? `<div style="font-size:11px;color:#94a3b8;">${escapeHtml(rec.description)}</div>` : ""}
         </div>
       `);
-      marker.addTo(groups.apiLoot);
+      marker.addTo(apiGroup);
     });
-  }, [catalog, customPins, tickedMapMaterials, inspectedMaterial, apiRecords, keysList, onRemovePin, zoomLevel, selectedFaction]);
+  }, [apiRecords]);
 
   const activeFactionInfo =
     selectedFaction !== "ALL" ? FACTIONS[selectedFaction] : null;
@@ -1841,7 +2137,7 @@ export function TacticalMapPanel({
         ? inspectedPoi.name
         : inspectedPoi.parentRegion || inspectedPoi.name;
 
-    const nearestLzs = LAMANG_POIS.filter((p) => p.kind === "lz")
+    const nearestLzs = LZS_LIST
       .map((p) => ({
         poi: p,
         dist: Math.round(
@@ -1852,7 +2148,7 @@ export function TacticalMapPanel({
       .sort((a, b) => a.dist - b.dist)
       .slice(0, 4);
 
-    const nearestCops = LAMANG_POIS.filter((p) => p.kind === "cop")
+    const nearestCops = COPS_LIST
       .map((p) => ({
         poi: p,
         dist: Math.round(
@@ -2035,7 +2331,7 @@ export function TacticalMapPanel({
       }
     };
     map.once("moveend", onMoveEnd);
-    map.flyTo(targetLl, 17, { duration: 0.45 });
+    safeFlyTo(pin.x, pin.y, 17);
   };
 
   // Global Keyboard Shortcuts: Esc (close/cancel), / (focus search), G (grid toggle), F (fit island)
@@ -2119,9 +2415,7 @@ export function TacticalMapPanel({
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && mapSearchResults.gridJump) {
                       const g = mapSearchResults.gridJump;
-                      mapRef.current?.flyTo(toLatLng(g.x, g.y), 16.5, {
-                        duration: 0.65,
-                      });
+                      safeFlyTo(g.x, g.y, 16.5);
                       setMapSearchOpen(false);
                       onNotify(`Jumped to Grid ${g.grid}`);
                     }
@@ -2129,7 +2423,7 @@ export function TacticalMapPanel({
                   placeholder="Search POI, item, key, grid (/)"
                   title="Search locations, items, tasks, keys, or grid coordinates (/)"
                   aria-label="Search map locations, items, keys, or grid"
-                  className="min-h-[42px] lg:min-h-[36px] w-36 sm:w-44 lg:w-48 2xl:w-56 pl-8 pr-6 py-1.5 rounded-xl lg:rounded-lg bg-[#0e131b]/94 backdrop-blur-xl border border-white/[0.11] focus:border-[#38bdf8] text-xs text-[#eef3f8] placeholder:text-[#7a899c] shadow-xl focus:outline-none transition-colors"
+                  className="min-h-[42px] lg:min-h-[36px] w-36 sm:w-44 lg:w-48 2xl:w-56 pl-8 pr-6 py-1.5 rounded-xl lg:rounded-lg bg-[#0e131b]/[0.97] border border-white/[0.11] focus:border-[#38bdf8] text-xs text-[#eef3f8] placeholder:text-[#7a899c] shadow-xl focus:outline-none transition-colors"
                 />
               {mapSearchQuery && (
                 <button
@@ -2147,16 +2441,14 @@ export function TacticalMapPanel({
             </div>
 
             {mapSearchOpen && mapSearchQuery.trim() && (
-              <div className="gzw-popover-enter absolute top-full left-0 mt-1.5 w-80 max-w-[calc(100vw-24px)] max-h-88 overflow-y-auto rounded-xl bg-[#0e131b]/96 backdrop-blur-xl border border-white/[0.12] p-1.5 shadow-2xl z-[810] space-y-1">
+              <div className="gzw-popover-enter absolute top-full left-0 mt-1.5 w-80 max-w-[calc(100vw-24px)] max-h-88 overflow-y-auto rounded-xl bg-[#0e131b]/[0.98] border border-white/[0.12] p-1.5 shadow-2xl z-[810] space-y-1">
                 {mapSearchResults.gridJump && (
                   <div className="flex items-center gap-1 rounded-lg bg-[#141b26] p-1">
                     <button
                       type="button"
                       onClick={() => {
                         const g = mapSearchResults.gridJump!;
-                        mapRef.current?.flyTo(toLatLng(g.x, g.y), 16.5, {
-                          duration: 0.65,
-                        });
+                        safeFlyTo(g.x, g.y, 16.5);
                         setMapSearchOpen(false);
                         onNotify(`Centered on Grid ${g.grid}`);
                       }}
@@ -2197,10 +2489,10 @@ export function TacticalMapPanel({
                     <button
                       type="button"
                       onClick={() => {
-                        mapRef.current?.flyTo(
-                          toLatLng(poi.x, poi.y),
-                          poi.kind === "sublocation" ? 17 : 16,
-                          { duration: 0.65 }
+                        safeFlyTo(
+                          poi.x,
+                          poi.y,
+                          poi.kind === "sublocation" ? 17 : 16
                         );
                         openZoneBriefing(poi);
                       }}
@@ -2373,9 +2665,7 @@ export function TacticalMapPanel({
                     type="button"
                     onClick={() => {
                       setMapSearchOpen(false);
-                      mapRef.current?.flyTo(toLatLng(pin.x, pin.y), 16.5, {
-                        duration: 0.65,
-                      });
+                      safeFlyTo(pin.x, pin.y, 16.5);
                       onNotify(
                         `Centered on ${pin.label} · Grid ${formatGridSquare(pin.x, pin.y)}`
                       );
@@ -2428,7 +2718,7 @@ export function TacticalMapPanel({
                   setLayersOpen(false);
                   setMapSearchOpen(false);
                 }}
-                className="min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl lg:rounded-lg bg-[#0e131b]/94 backdrop-blur-xl border border-white/[0.11] hover:border-white/[0.22] text-xs font-medium text-[#e2e9f2] shadow-xl transition-colors whitespace-nowrap"
+                className="min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl lg:rounded-lg bg-[#0e131b]/[0.97] border border-white/[0.11] hover:border-white/[0.22] text-xs font-medium text-[#e2e9f2] shadow-xl transition-colors whitespace-nowrap"
               >
                 <Navigation className="w-3.5 h-3.5 text-[#e5a93c]" />
                 <span className="hidden lg:inline">Regions</span>
@@ -2436,7 +2726,7 @@ export function TacticalMapPanel({
               </button>
 
               {jumpOpen && (
-                <div className="gzw-popover-enter absolute top-full left-0 mt-1.5 w-64 max-w-[calc(100vw-24px)] max-h-72 overflow-y-auto rounded-xl bg-[#0e131b]/96 backdrop-blur-xl border border-white/[0.12] p-1.5 shadow-2xl z-[800]">
+                <div className="gzw-popover-enter absolute top-full left-0 mt-1.5 w-64 max-w-[calc(100vw-24px)] max-h-72 overflow-y-auto rounded-xl bg-[#0e131b]/[0.98] border border-white/[0.12] p-1.5 shadow-2xl z-[800]">
                   {quickJumpPois.map((poi) => {
                     const isOwnFob =
                       activeFactionInfo && poi.id === activeFactionInfo.baseId;
@@ -2447,7 +2737,7 @@ export function TacticalMapPanel({
                         key={poi.id}
                         type="button"
                         onClick={() => {
-                          mapRef.current?.flyTo(toLatLng(poi.x, poi.y), 16, { duration: 0.65 });
+                          safeFlyTo(poi.x, poi.y, 16);
                           openZoneBriefing(poi);
                         }}
                         className="w-full min-h-[40px] lg:min-h-[36px] text-left px-2.5 py-1.5 rounded-lg hover:bg-white/[0.06] flex items-center justify-between gap-2 text-xs transition-colors"
@@ -2491,7 +2781,7 @@ export function TacticalMapPanel({
               }))
             }
             title="Toggle 100m in-game map grid lines & coordinates (G)"
-            className={`min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl lg:rounded-lg text-xs font-medium backdrop-blur-xl shadow-xl transition-colors whitespace-nowrap shrink-0 ${
+            className={`min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl lg:rounded-lg text-xs font-medium shadow-xl transition-colors whitespace-nowrap shrink-0 ${
               layerVisibility.gridOverlay
                 ? "bg-[#e5a93c]/16 border border-[#e5a93c]/55 text-[#fde68a]"
                 : "bg-[#0e131b]/94 border border-white/[0.11] text-[#94a3b8] hover:text-white"
@@ -2511,7 +2801,7 @@ export function TacticalMapPanel({
                 setJumpOpen(false);
                 setMapSearchOpen(false);
               }}
-              className="min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl lg:rounded-lg bg-[#0e131b]/94 backdrop-blur-xl border border-white/[0.11] hover:border-white/[0.22] text-xs font-medium text-[#e2e9f2] shadow-xl transition-colors whitespace-nowrap"
+              className="min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl lg:rounded-lg bg-[#0e131b]/[0.97] border border-white/[0.11] hover:border-white/[0.22] text-xs font-medium text-[#e2e9f2] shadow-xl transition-colors whitespace-nowrap"
             >
               <Layers className="w-3.5 h-3.5 text-[#38bdf8]" />
               <span className="hidden lg:inline">Layers</span>
@@ -2521,7 +2811,7 @@ export function TacticalMapPanel({
             </button>
 
             {layersOpen && (
-              <div className="gzw-popover-enter absolute top-full right-0 sm:left-0 sm:right-auto mt-1.5 w-64 max-w-[calc(100vw-24px)] rounded-xl bg-[#0e131b]/96 backdrop-blur-xl border border-white/[0.12] p-2.5 shadow-2xl z-[800] space-y-1">
+              <div className="gzw-popover-enter absolute top-full right-0 sm:left-0 sm:right-auto mt-1.5 w-64 max-w-[calc(100vw-24px)] rounded-xl bg-[#0e131b]/[0.98] border border-white/[0.12] p-2.5 shadow-2xl z-[800] space-y-1">
                 {(
                   [
                     { key: "gridOverlay", label: "100m Grid Lines & Coords", dot: "bg-slate-400" },
@@ -2572,7 +2862,7 @@ export function TacticalMapPanel({
               type="button"
               onClick={() => onToggleGlanceMode(!glanceMode)}
               title="Toggle Glance Mode — fullscreen map & oversized bearing HUD for Monitor 2"
-              className={`hidden sm:inline-flex min-h-[36px] items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium backdrop-blur-xl shadow-xl transition-colors whitespace-nowrap shrink-0 ${
+              className={`hidden sm:inline-flex min-h-[36px] items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium shadow-xl transition-colors whitespace-nowrap shrink-0 ${
                 glanceMode
                   ? "bg-[#e5a93c]/25 border border-[#e5a93c] text-[#fde68a]"
                   : "bg-[#0e131b]/94 border border-white/[0.11] text-[#e2e9f2] hover:border-white/[0.22]"
@@ -2601,7 +2891,7 @@ export function TacticalMapPanel({
                   }
                 }}
                 title="Measure distance and bearing between two points"
-                className={`min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl lg:rounded-lg text-xs font-medium backdrop-blur-xl shadow-xl transition-colors whitespace-nowrap shrink-0 ${
+                className={`min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl lg:rounded-lg text-xs font-medium shadow-xl transition-colors whitespace-nowrap shrink-0 ${
                   measureMode
                     ? "bg-[#38bdf8]/20 border border-[#38bdf8] text-[#bae6fd]"
                     : "bg-[#0e131b]/94 border border-white/[0.11] text-[#e2e9f2] hover:border-white/[0.22]"
@@ -2624,7 +2914,7 @@ export function TacticalMapPanel({
                   }
                   onTogglePinDropMode();
                 }}
-                className={`min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl lg:rounded-lg text-xs font-medium backdrop-blur-xl shadow-xl transition-colors whitespace-nowrap shrink-0 ${
+                className={`min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl lg:rounded-lg text-xs font-medium shadow-xl transition-colors whitespace-nowrap shrink-0 ${
                   pinDropMode
                     ? "bg-cyan-500/20 border border-cyan-400 text-cyan-200"
                     : "bg-[#0e131b]/94 border border-white/[0.11] text-[#e2e9f2] hover:border-white/[0.22]"
@@ -2644,7 +2934,7 @@ export function TacticalMapPanel({
                   setMapSearchOpen(false);
                 }}
                 aria-label="Open saved pins list"
-                className={`min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl lg:rounded-lg text-xs font-medium backdrop-blur-xl shadow-xl transition-colors whitespace-nowrap shrink-0 ${
+                className={`min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl lg:rounded-lg text-xs font-medium shadow-xl transition-colors whitespace-nowrap shrink-0 ${
                   pinsDrawerOpen
                     ? "bg-[#10b981]/20 border border-[#34d399]/70 text-[#a7f3d0]"
                     : "bg-[#0e131b]/94 border border-white/[0.11] text-[#e2e9f2] hover:border-white/[0.22]"
@@ -2669,7 +2959,7 @@ export function TacticalMapPanel({
             type="button"
             onClick={fitIslandView}
             title="Reset Island View (F)"
-            className="min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl lg:rounded-lg text-xs font-medium bg-[#0e131b]/94 backdrop-blur-xl border border-white/[0.11] text-[#e2e9f2] hover:border-white/[0.22] shadow-xl transition-colors whitespace-nowrap shrink-0"
+            className="min-h-[42px] lg:min-h-[36px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl lg:rounded-lg text-xs font-medium bg-[#0e131b]/[0.97] border border-white/[0.11] text-[#e2e9f2] hover:border-white/[0.22] shadow-xl transition-colors whitespace-nowrap shrink-0"
           >
             <LocateFixed className="w-3.5 h-3.5" />
             <span className="hidden lg:inline">Reset</span>
@@ -2682,7 +2972,7 @@ export function TacticalMapPanel({
           <div className="min-w-0 max-w-full pointer-events-none">
       {/* Interactive Zone Intel Slide-Over Drawer (Direct Map Click on any POI / Compound / COP / LZ) */}
       {inspectedPoi && zoneIntel && !inspectedMaterial && !inspectedTask && !inspectedKey && (
-        <div className="gzw-drawer-enter pointer-events-auto w-full sm:w-[360px] max-w-full max-h-[52vh] lg:max-h-[calc(100vh-220px)] overflow-y-auto rounded-xl bg-[#0e131b]/95 backdrop-blur-xl border border-white/[0.11] p-4 shadow-2xl">
+        <div className="gzw-drawer-enter pointer-events-auto w-full sm:w-[360px] max-w-full max-h-[52vh] lg:max-h-[calc(100vh-220px)] overflow-y-auto rounded-xl bg-[#0e131b]/[0.97] border border-white/[0.11] p-4 shadow-2xl">
           <div className="flex items-start justify-between gap-2 pb-3 border-b border-white/[0.075]">
             <div className="min-w-0">
               <div className="text-[11px] font-medium text-[#e5a93c]">
@@ -2739,9 +3029,7 @@ export function TacticalMapPanel({
                   >
                     <button
                       type="button"
-                      onClick={() =>
-                        mapRef.current?.flyTo(toLatLng(lzPoi.x, lzPoi.y), 16, { duration: 0.55 })
-                      }
+                      onClick={() => safeFlyTo(lzPoi.x, lzPoi.y, 16)}
                       className="text-left min-w-0 flex-1"
                     >
                       <div className="text-[11px] font-semibold text-[#fde047] truncate">
@@ -2784,9 +3072,7 @@ export function TacticalMapPanel({
                   >
                     <button
                       type="button"
-                      onClick={() =>
-                        mapRef.current?.flyTo(toLatLng(copPoi.x, copPoi.y), 16, { duration: 0.55 })
-                      }
+                      onClick={() => safeFlyTo(copPoi.x, copPoi.y, 16)}
                       className="text-left min-w-0 flex-1"
                     >
                       <div className="text-[11px] font-semibold text-[#bae6fd] truncate">
@@ -2957,7 +3243,7 @@ export function TacticalMapPanel({
 
       {/* Locked Door & Key Slide-Over Drawer */}
       {inspectedKey && !inspectedMaterial && !inspectedTask && (
-        <div className="gzw-drawer-enter pointer-events-auto w-full sm:w-[360px] max-w-full max-h-[52vh] lg:max-h-[calc(100vh-220px)] overflow-y-auto rounded-xl bg-[#0e131b]/95 backdrop-blur-xl border border-white/[0.11] p-4 shadow-2xl">
+        <div className="gzw-drawer-enter pointer-events-auto w-full sm:w-[360px] max-w-full max-h-[52vh] lg:max-h-[calc(100vh-220px)] overflow-y-auto rounded-xl bg-[#0e131b]/[0.97] border border-white/[0.11] p-4 shadow-2xl">
           <div className="flex items-start justify-between gap-2 pb-3 border-b border-white/[0.075]">
             <div className="flex items-center gap-2.5 min-w-0">
               <ItemThumbnail
@@ -3087,7 +3373,7 @@ export function TacticalMapPanel({
         !inspectedKey &&
         !inspectedMaterial &&
         !inspectedTask && (
-          <div className="gzw-drawer-enter pointer-events-auto w-full sm:w-[390px] max-w-full max-h-[56vh] lg:max-h-[calc(100vh-210px)] overflow-y-auto rounded-xl bg-[#0e131b]/96 backdrop-blur-xl border border-[#38bdf8]/25 p-4 shadow-2xl">
+          <div className="gzw-drawer-enter pointer-events-auto w-full sm:w-[390px] max-w-full max-h-[56vh] lg:max-h-[calc(100vh-210px)] overflow-y-auto rounded-xl bg-[#0e131b]/[0.98] border border-[#38bdf8]/25 p-4 shadow-2xl">
             <div className="flex items-start justify-between gap-2 pb-3 border-b border-white/[0.075]">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-medium">
@@ -3361,7 +3647,7 @@ export function TacticalMapPanel({
 
       {/* Task AO & Full Walkthrough Slide-Over Drawer */}
       {inspectedTask && !inspectedMaterial && (
-        <div className="gzw-drawer-enter pointer-events-auto w-full sm:w-[360px] max-w-full max-h-[52vh] lg:max-h-[calc(100vh-220px)] overflow-y-auto rounded-xl bg-[#0e131b]/95 backdrop-blur-xl border border-white/[0.11] p-4 shadow-2xl">
+        <div className="gzw-drawer-enter pointer-events-auto w-full sm:w-[360px] max-w-full max-h-[52vh] lg:max-h-[calc(100vh-220px)] overflow-y-auto rounded-xl bg-[#0e131b]/[0.97] border border-white/[0.11] p-4 shadow-2xl">
           <div className="flex items-start justify-between gap-2 pb-3 border-b border-white/[0.075]">
             <div className="min-w-0">
               <div className="text-[11px] font-medium text-[#38bdf8]">
@@ -3531,11 +3817,7 @@ export function TacticalMapPanel({
                     >
                       <button
                         type="button"
-                        onClick={() =>
-                          mapRef.current?.flyTo(toLatLng(coord.x, coord.y), 17, {
-                            duration: 0.55,
-                          })
-                        }
+                        onClick={() => safeFlyTo(coord.x, coord.y, 17)}
                         className="flex-1 min-w-0 text-left px-2.5 py-2 flex items-center justify-between gap-2"
                       >
                         <div className="min-w-0">
@@ -3576,11 +3858,7 @@ export function TacticalMapPanel({
                     >
                       <button
                         type="button"
-                        onClick={() =>
-                          mapRef.current?.flyTo(toLatLng(poi.x, poi.y), 16.5, {
-                            duration: 0.6,
-                          })
-                        }
+                        onClick={() => safeFlyTo(poi.x, poi.y, 16.5)}
                         className="flex-1 min-w-0 text-left px-2.5 py-2 flex items-center justify-between gap-2"
                       >
                         <div className="min-w-0">
@@ -3681,7 +3959,7 @@ export function TacticalMapPanel({
 
       {/* Material Spawn & Upgrade Intel Slide-Over Drawer */}
       {inspectedMaterial && (
-        <div className="gzw-drawer-enter pointer-events-auto w-full sm:w-[360px] max-w-full max-h-[50vh] lg:max-h-[calc(100vh-220px)] overflow-y-auto rounded-xl bg-[#0e131b]/95 backdrop-blur-xl border border-white/[0.11] p-4 shadow-2xl">
+        <div className="gzw-drawer-enter pointer-events-auto w-full sm:w-[360px] max-w-full max-h-[50vh] lg:max-h-[calc(100vh-220px)] overflow-y-auto rounded-xl bg-[#0e131b]/[0.97] border border-white/[0.11] p-4 shadow-2xl">
           <div className="flex items-start justify-between gap-3 pb-3 border-b border-white/[0.075]">
             <div className="flex items-center gap-3 min-w-0">
               <ItemThumbnail
@@ -3806,9 +4084,7 @@ export function TacticalMapPanel({
                   <button
                     key={i}
                     type="button"
-                    onClick={() =>
-                      mapRef.current?.flyTo(toLatLng(pt.x, pt.y), 16.5, { duration: 0.6 })
-                    }
+                    onClick={() => safeFlyTo(pt.x, pt.y, 16.5)}
                     className="w-full text-left px-2.5 py-2 rounded-lg bg-[#0a0e14] border border-white/[0.065] hover:border-[#38bdf8] transition-colors flex items-center justify-between gap-2"
                   >
                     <div className="min-w-0">
@@ -3838,7 +4114,7 @@ export function TacticalMapPanel({
           <div className="ml-auto flex flex-col items-end gap-2 max-w-full pointer-events-none">
             {/* Glance Mode Monitor-2 Status Pill */}
             {glanceMode && (
-              <div className="hidden lg:flex pointer-events-auto items-center gap-2 rounded-lg bg-[#0e131b]/94 backdrop-blur-xl border border-white/[0.11] px-2.5 py-1.5 text-[11px] text-[#cbd5e1] shadow-xl">
+              <div className="hidden lg:flex pointer-events-auto items-center gap-2 rounded-lg bg-[#0e131b]/[0.97] border border-white/[0.11] px-2.5 py-1.5 text-[11px] text-[#cbd5e1] shadow-xl">
                 <span className="font-semibold text-[#f8fafc]">{activeOperatorName}</span>
                 {activeFactionInfo && (
                   <span
@@ -3853,7 +4129,7 @@ export function TacticalMapPanel({
 
       {/* Recorded Dropped Pins Drawer */}
       {pinsDrawerOpen && (
-        <div className="gzw-drawer-enter pointer-events-auto w-full sm:w-[360px] max-w-full max-h-[52vh] lg:max-h-[calc(100vh-220px)] flex flex-col rounded-xl bg-[#0e131b]/96 backdrop-blur-xl border border-white/[0.11] shadow-2xl overflow-hidden">
+        <div className="gzw-drawer-enter pointer-events-auto w-full sm:w-[360px] max-w-full max-h-[52vh] lg:max-h-[calc(100vh-220px)] flex flex-col rounded-xl bg-[#0e131b]/[0.98] border border-white/[0.11] shadow-2xl overflow-hidden">
           <div className="px-4 py-3 border-b border-white/[0.075] flex items-center justify-between gap-2 shrink-0">
             <div className="min-w-0">
               <h3 className="font-display text-sm font-semibold text-[#f8fafc] flex items-center gap-2">
@@ -4038,7 +4314,7 @@ export function TacticalMapPanel({
 
       {/* Pin Drop Create / Edit Modal */}
       {capturedCoords && (
-        <div className="gzw-drawer-enter pointer-events-auto w-full sm:w-[330px] max-w-full max-h-[54vh] lg:max-h-[calc(100vh-220px)] overflow-y-auto rounded-xl bg-[#0e131b]/96 backdrop-blur-xl border border-[#38bdf8]/55 p-4 shadow-2xl space-y-3">
+        <div className="gzw-drawer-enter pointer-events-auto w-full sm:w-[330px] max-w-full max-h-[54vh] lg:max-h-[calc(100vh-220px)] overflow-y-auto rounded-xl bg-[#0e131b]/[0.98] border border-[#38bdf8]/55 p-4 shadow-2xl space-y-3">
           <div className="flex items-center justify-between gap-2">
             <div>
               <div className="text-[11px] font-semibold text-[#e5a93c]">
@@ -4175,7 +4451,7 @@ export function TacticalMapPanel({
       {/* Live Compass Bearing Lock HUD Banner (Monitor 2 Top-HUD Compass Readout) */}
       {navTarget && activeNavTelemetry && effectiveNavOrigin && (
         <div
-          className={`gzw-drawer-enter absolute bottom-12 md:bottom-11 left-2.5 right-2.5 sm:right-auto md:left-1/2 md:-translate-x-1/2 z-[690] pointer-events-auto rounded-xl bg-[#0e131b]/96 backdrop-blur-xl border border-[#e5a93c]/50 shadow-2xl ${
+          className={`gzw-drawer-enter absolute bottom-12 md:bottom-11 left-2.5 right-2.5 sm:right-auto md:left-1/2 md:-translate-x-1/2 z-[690] pointer-events-auto rounded-xl bg-[#0e131b]/[0.98] border border-[#e5a93c]/50 shadow-2xl ${
             glanceMode ? "px-4 py-2.5" : "px-3 py-2"
           }`}
         >
@@ -4238,7 +4514,7 @@ export function TacticalMapPanel({
               </button>
 
               {originPickerOpen && (
-                <div className="gzw-popover-enter absolute bottom-full right-0 mb-2 w-60 rounded-xl bg-[#0e131b]/96 backdrop-blur-xl border border-white/[0.12] p-1.5 shadow-2xl z-[760] space-y-1">
+                <div className="gzw-popover-enter absolute bottom-full right-0 mb-2 w-60 rounded-xl bg-[#0e131b]/[0.98] border border-white/[0.12] p-1.5 shadow-2xl z-[760] space-y-1">
                   <div className="px-2 py-1 text-[11px] font-medium text-[#94a3b8]">
                     Switch Bearing Origin
                   </div>
@@ -4316,7 +4592,7 @@ export function TacticalMapPanel({
       {contextMenu && (
         <div
           style={{ left: contextMenu.left, top: contextMenu.top }}
-          className="gzw-popover-enter absolute z-[850] w-54 rounded-xl bg-[#0e131b]/96 backdrop-blur-xl border border-white/[0.12] p-1.5 shadow-2xl pointer-events-auto"
+          className="gzw-popover-enter absolute z-[850] w-54 rounded-xl bg-[#0e131b]/[0.98] border border-white/[0.12] p-1.5 shadow-2xl pointer-events-auto"
           onContextMenu={(e) => e.preventDefault()}
         >
           <div className="px-2.5 py-1.5 border-b border-white/[0.075] flex items-center justify-between gap-2 mb-1">
@@ -4402,7 +4678,7 @@ export function TacticalMapPanel({
       )}
 
       {/* Minimal Bottom-Right Coordinate & Measure Telemetry */}
-      <div className="absolute bottom-2.5 right-2.5 z-[650] pointer-events-auto bg-[#0e131b]/94 backdrop-blur-xl border border-white/[0.11] rounded-lg px-2.5 py-1.5 font-mono-tabular text-[11px] text-[#94a3b8] flex items-center gap-2 shadow-xl">
+      <div className="absolute bottom-2.5 right-2.5 z-[650] pointer-events-auto bg-[#0e131b]/[0.97] border border-white/[0.11] rounded-lg px-2.5 py-1.5 font-mono-tabular text-[11px] text-[#94a3b8] flex items-center gap-2 shadow-xl">
         {measurePoints.length > 0 && (
           <>
             <span className="text-[#38bdf8] font-semibold">
@@ -4439,7 +4715,7 @@ export function TacticalMapPanel({
           7000, 4200
         </span>
         <span className="text-[#3a4657]">·</span>
-        <span>Z{zoomLevel.toFixed(1)}</span>
+        <span ref={zoomReadoutRef}>Z14.0</span>
       </div>
 
       {/* Map Reference Image Lightbox */}

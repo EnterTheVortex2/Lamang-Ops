@@ -71,11 +71,11 @@
 
 .gzw-drawer-enter,
 .gzw-popover-enter {
-  animation: gzwFadeSlideIn 150ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: gzwFadeSlideIn 85ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .gzw-toast-enter {
-  animation: gzwToastIn 160ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: gzwToastIn 100ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -110,6 +110,13 @@
 
 .leaflet-container img.leaflet-tile {
   mix-blend-mode: normal !important;
+  transition: none !important;
+  opacity: 1 !important;
+  will-change: transform;
+}
+
+.leaflet-tile-container {
+  will-change: transform;
 }
 
 .pin-drop-active .leaflet-container,

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  BookOpen,
+  Bot,
   Check,
   CheckSquare,
   ChevronDown,
@@ -39,7 +41,13 @@ import {
 import { KeysDoorsPanel } from "./components/KeysDoorsPanel";
 import { LegalPrivacyPanel } from "./components/LegalPrivacyPanel";
 import { TasksTrackerPanel } from "./components/TasksTrackerPanel";
+import { FieldArchivePanel } from "./components/FieldArchivePanel";
 import { TacticalMapPanel } from "./components/TacticalMapPanel";
+import {
+  TacticalChatDrawer,
+  type OperatorChatContextPayload,
+} from "./components/TacticalChatDrawer";
+import type { LocalChatKnowledge } from "./services/localTacticalChat";
 import { VendorShopPanel } from "./components/VendorShopPanel";
 import { WeaponLoadoutPanel } from "./components/WeaponLoadoutPanel";
 import {
@@ -90,8 +98,23 @@ const PANEL_WIDTH_KEY = "lamang_ops_panel_width_v2";
 const MIN_PANEL_WIDTH = 380;
 
 type ApiStatusMode = "loading" | "live" | "cached" | "error";
-type WorkspaceMode = "hideout" | "tasks" | "weapons" | "vendors" | "keys" | "legal";
-type MobileTab = "hideout" | "tasks" | "weapons" | "vendors" | "map" | "keys" | "legal";
+type WorkspaceMode =
+  | "hideout"
+  | "tasks"
+  | "weapons"
+  | "vendors"
+  | "keys"
+  | "archive"
+  | "legal";
+type MobileTab =
+  | "hideout"
+  | "tasks"
+  | "weapons"
+  | "vendors"
+  | "map"
+  | "keys"
+  | "archive"
+  | "legal";
 
 function getDefaultSplitWidth(): number {
   const vw = typeof window !== "undefined" ? window.innerWidth : 1440;
@@ -110,6 +133,8 @@ export default function App() {
   workspaceModeRef.current = workspaceMode;
   const [mobileTab, setMobileTab] = useState<MobileTab>("hideout");
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [pendingChatPrompt, setPendingChatPrompt] = useState<string | null>(null);
   const [glanceMode, setGlanceMode] = useState(false);
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth >= 1024 : true
@@ -399,6 +424,95 @@ export default function App() {
     return list;
   }, [apiCache]);
 
+  const chatOperatorContext = useMemo<OperatorChatContextPayload>(() => {
+    const hasPlanned = allUpgrades.some(
+      (u) => !builtUpgrades[u.id] && !!plannedUpgrades[u.id]
+    );
+    const targetUpgrades = allUpgrades.filter((u) => {
+      if (builtUpgrades[u.id]) return false;
+      return hasPlanned ? !!plannedUpgrades[u.id] : true;
+    });
+
+    const totals = new Map<string, { name: string; need: number }>();
+    for (const upg of targetUpgrades) {
+      for (const req of upg.requirements) {
+        const normKey = req.name.trim().toLowerCase();
+        const existing = totals.get(normKey);
+        if (existing) {
+          existing.need += req.quantity;
+        } else {
+          totals.set(normKey, { name: req.name, need: req.quantity });
+        }
+      }
+    }
+
+    const missingMaterials = Array.from(totals.entries())
+      .map(([normKey, item]) => {
+        const have = Math.max(0, stashCounts[normKey] || 0);
+        const remaining = Math.max(0, item.need - have);
+        return {
+          name: item.name,
+          have,
+          need: item.need,
+          remaining,
+        };
+      })
+      .filter((m) => m.remaining > 0)
+      .sort((a, b) => b.remaining - a.remaining)
+      .slice(0, 20);
+
+    return {
+      operatorName: activeOperatorProfile.name,
+      faction: selectedFaction,
+      activeSection: workspaceMode,
+      builtCount,
+      totalUpgrades: allUpgrades.length,
+      completedTasksCount,
+      totalTasksCount: factionTasks.length,
+      ownedKeysCount,
+      totalKeysCount: keysCatalog.length,
+      plannedUpgradeNames: allUpgrades
+        .filter((u) => plannedUpgrades[u.id] && !builtUpgrades[u.id])
+        .map((u) => u.name)
+        .slice(0, 12),
+      missingMaterials,
+    };
+  }, [
+    activeOperatorProfile.name,
+    selectedFaction,
+    workspaceMode,
+    builtCount,
+    allUpgrades,
+    completedTasksCount,
+    factionTasks.length,
+    ownedKeysCount,
+    keysCatalog.length,
+    builtUpgrades,
+    plannedUpgrades,
+    stashCounts,
+  ]);
+
+  const chatKnowledge = useMemo<LocalChatKnowledge>(
+    () => ({
+      allUpgrades,
+      catalog,
+      disassemblyRecipes,
+      allTasks,
+      keysCatalog,
+      vendorShopItems,
+      operatorContext: chatOperatorContext,
+    }),
+    [
+      allUpgrades,
+      catalog,
+      disassemblyRecipes,
+      allTasks,
+      keysCatalog,
+      vendorShopItems,
+      chatOperatorContext,
+    ]
+  );
+
   const handleToggleBuilt = useCallback(
     (upgradeId: string) => {
       updateOpState((prev) => ({
@@ -483,7 +597,10 @@ export default function App() {
       const isMobile = window.innerWidth < 1024;
       const prev = workspaceModeRef.current;
       const isFullWidth =
-        prev === "vendors" || prev === "weapons" || prev === "legal";
+        prev === "vendors" ||
+        prev === "weapons" ||
+        prev === "archive" ||
+        prev === "legal";
       if (isFullWidth) {
         setWorkspaceMode(targetMode);
       }
@@ -1085,6 +1202,7 @@ export default function App() {
           if (
             workspaceMode === "vendors" ||
             workspaceMode === "weapons" ||
+            workspaceMode === "archive" ||
             workspaceMode === "legal"
           ) {
             setWorkspaceMode("hideout");
@@ -1103,6 +1221,7 @@ export default function App() {
   const isFullWidthDesktopWorkspace =
     workspaceMode === "vendors" ||
     workspaceMode === "weapons" ||
+    workspaceMode === "archive" ||
     workspaceMode === "legal";
 
   const isSidebarVisibleOnMobile = mobileTab !== "map";
@@ -1295,6 +1414,23 @@ export default function App() {
             </button>
           )}
 
+          {/* AI Tactical Chatbot Trigger (Visible on both desktop and mobile) */}
+          <button
+            type="button"
+            onClick={() => setChatOpen(true)}
+            aria-label="Open Tactical AI Intel Chatbot"
+            aria-expanded={chatOpen}
+            title="Ask Tactical AI Intel about anything in the app or live API"
+            className={`min-h-[44px] lg:min-h-[32px] inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors whitespace-nowrap shrink-0 ${
+              chatOpen
+                ? "bg-[#e5a93c]/20 border-[#e5a93c]/60 text-[#fde68a]"
+                : "bg-[#141b26] border-[#38bdf8]/40 text-[#e0f2fe] hover:border-[#e5a93c]/60 hover:text-white"
+            }`}
+          >
+            <Bot className="w-3.5 h-3.5 text-[#e5a93c] shrink-0" />
+            <span className="hidden sm:inline">AI Intel</span>
+          </button>
+
           {/* Mobile Drawer Trigger (< lg): Houses Keys, Legal, Faction, Sync & Reset so header stays uncluttered */}
           <button
             type="button"
@@ -1474,6 +1610,22 @@ export default function App() {
                 <KeyRound className="w-3.5 h-3.5 text-[#e5a93c]" />
                 <span>Keys</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setWorkspaceMode("archive");
+                  setMobileTab("archive");
+                }}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                  workspaceMode === "archive"
+                    ? "bg-[#141b26] text-[#f8fafc] shadow-sm ring-1 ring-white/[0.08]"
+                    : "text-[#8896a8] hover:text-[#e2e8f0]"
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5 text-[#38bdf8]" />
+                <span>Archive</span>
+              </button>
             </div>
 
             {isFullWidthDesktopWorkspace ? (
@@ -1570,6 +1722,13 @@ export default function App() {
               isExpanded={isWidePanel}
               isLoadingApi={apiStatus.mode === "loading"}
               onLocateItem={handleLocateByName}
+            />
+          ) : workspaceMode === "archive" ? (
+            <FieldArchivePanel
+              onAskAi={(prompt) => {
+                setPendingChatPrompt(prompt);
+                setChatOpen(true);
+              }}
             />
           ) : workspaceMode === "legal" ? (
             <LegalPrivacyPanel
@@ -1890,6 +2049,27 @@ export default function App() {
                     type="button"
                     onClick={() => {
                       setGlanceMode(false);
+                      setMobileTab("archive");
+                      setWorkspaceMode("archive");
+                      setMobileDrawerOpen(false);
+                    }}
+                    className={`min-h-[48px] px-4 py-3 rounded-xl border flex items-center justify-between text-sm font-medium transition-colors ${
+                      mobileTab === "archive"
+                        ? "bg-[#141b26] border-[#38bdf8]/60 text-[#f8fafc]"
+                        : "bg-[#0a0e14] border-white/[0.08] text-[#e2e8f0]"
+                    }`}
+                  >
+                    <span className="inline-flex items-center gap-2.5">
+                      <BookOpen className="w-4 h-4 text-[#38bdf8]" />
+                      <span>Field Archive &amp; Ballistics Library</span>
+                    </span>
+                    <span className="text-[11px] text-[#7dd3fc]">0.5 Ref</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGlanceMode(false);
                       setMobileTab("legal");
                       setWorkspaceMode("legal");
                       setMobileDrawerOpen(false);
@@ -1943,6 +2123,20 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Tactical Intel Chatbot Slide-Over Drawer (100% Static / Browser-Side) */}
+      <TacticalChatDrawer
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        knowledge={chatKnowledge}
+        pendingPrompt={pendingChatPrompt}
+        onConsumePendingPrompt={() => setPendingChatPrompt(null)}
+        onOpenArchive={() => {
+          setGlanceMode(false);
+          setWorkspaceMode("archive");
+          setMobileTab("archive");
+        }}
+      />
 
       {/* Subtle Action Toast */}
       {toast && (

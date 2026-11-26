@@ -413,7 +413,70 @@ const TRANSPARENT_TILE_PNG = Buffer.from(
   "base64"
 );
 const tileCache = new Map<string, { buf: Buffer; isEmpty: boolean }>();
-const MAX_TILE_CACHE = 800;
+const inflightTileFetches = new Map<string, Promise<{ buf: Buffer; isEmpty: boolean }>>();
+const MAX_TILE_CACHE = 3200;
+
+function cacheTile(key: string, entry: { buf: Buffer; isEmpty: boolean }) {
+  if (tileCache.size >= MAX_TILE_CACHE) {
+    const firstKey = tileCache.keys().next().value;
+    if (firstKey) tileCache.delete(firstKey);
+  }
+  tileCache.set(key, entry);
+}
+
+async function fetchTileCached(
+  z: number,
+  x: number,
+  y: number
+): Promise<{ buf: Buffer; isEmpty: boolean }> {
+  const key = `${z}/${x}/${y}`;
+  const existing = tileCache.get(key);
+  if (existing) return existing;
+
+  const inflight = inflightTileFetches.get(key);
+  if (inflight) return inflight;
+
+  const promise = (async () => {
+    try {
+      const upstream = await fetch(`${TILE_CDN_BASE}/${z}/${x}/${y}.png`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!upstream.ok) {
+        const empty = { buf: TRANSPARENT_TILE_PNG, isEmpty: true };
+        cacheTile(key, empty);
+        return empty;
+      }
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      const entry = { buf, isEmpty: false };
+      cacheTile(key, entry);
+      return entry;
+    } catch {
+      return { buf: TRANSPARENT_TILE_PNG, isEmpty: true };
+    } finally {
+      inflightTileFetches.delete(key);
+    }
+  })();
+
+  inflightTileFetches.set(key, promise);
+  return promise;
+}
+
+async function prewarmOverviewTiles(): Promise<void> {
+  // Pre-warm all 30 Zoom-14 tiles covering Lamang Island ([0..14000, 0..8000])
+  const coords: { z: number; x: number; y: number }[] = [];
+  for (let x = 8192; x <= 8197; x++) {
+    for (let y = 8188; y <= 8192; y++) {
+      coords.push({ z: 14, x, y });
+    }
+  }
+  const batchSize = 6;
+  for (let i = 0; i < coords.length; i += batchSize) {
+    const batch = coords.slice(i, i + batchSize);
+    await Promise.allSettled(
+      batch.map((c) => fetchTileCached(c.z, c.x, c.y))
+    );
+  }
+}
 
 async function startServer() {
   const app = express();
@@ -432,51 +495,18 @@ async function startServer() {
       z > 19
     ) {
       res.setHeader("Content-Type", "image/png");
-      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.setHeader("Cache-Control", "public, max-age=604800, immutable");
       res.send(TRANSPARENT_TILE_PNG);
       return;
     }
 
-    const key = `${z}/${x}/${y}`;
-    const cached = tileCache.get(key);
-    if (cached) {
-      res.setHeader("Content-Type", "image/png");
-      res.setHeader("Cache-Control", "public, max-age=86400");
-      res.send(cached.buf);
-      return;
-    }
-
-    try {
-      const upstream = await fetch(`${TILE_CDN_BASE}/${z}/${x}/${y}.png`, {
-        signal: AbortSignal.timeout(8000),
-      });
-
-      if (!upstream.ok) {
-        if (tileCache.size >= MAX_TILE_CACHE) {
-          const firstKey = tileCache.keys().next().value;
-          if (firstKey) tileCache.delete(firstKey);
-        }
-        tileCache.set(key, { buf: TRANSPARENT_TILE_PNG, isEmpty: true });
-        res.setHeader("Content-Type", "image/png");
-        res.setHeader("Cache-Control", "public, max-age=86400");
-        res.send(TRANSPARENT_TILE_PNG);
-        return;
-      }
-
-      const buf = Buffer.from(await upstream.arrayBuffer());
-      if (tileCache.size >= MAX_TILE_CACHE) {
-        const firstKey = tileCache.keys().next().value;
-        if (firstKey) tileCache.delete(firstKey);
-      }
-      tileCache.set(key, { buf, isEmpty: false });
-
-      res.setHeader("Content-Type", "image/png");
-      res.setHeader("Cache-Control", "public, max-age=86400");
-      res.send(buf);
-    } catch {
-      res.setHeader("Content-Type", "image/png");
-      res.send(TRANSPARENT_TILE_PNG);
-    }
+    const entry = await fetchTileCached(z, x, y);
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader(
+      "Cache-Control",
+      entry.isEmpty ? "public, max-age=86400" : "public, max-age=604800, immutable"
+    );
+    res.send(entry.buf);
   });
 
   const imageCache = new Map<string, { buf: Buffer; contentType: string }>();
@@ -515,15 +545,20 @@ async function startServer() {
     }
 
     try {
-      let upstream = await fetch(rawUrl, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-          Referer: "https://gray-zone-warfare.fandom.com/",
-          Accept: "image/avif,image/webp,image/png,image/*,*/*;q=0.8",
-        },
-        signal: AbortSignal.timeout(8000),
-      });
+      const fetchImageWithHeaders = async (urlToFetch: string, ua: string) =>
+        fetch(urlToFetch, {
+          headers: {
+            "User-Agent": ua,
+            Referer: "https://gray-zone-warfare.fandom.com/",
+            Accept: "image/avif,image/webp,image/png,image/*,*/*;q=0.8",
+          },
+          signal: AbortSignal.timeout(8000),
+        });
+
+      let upstream = await fetchImageWithHeaders(rawUrl, "Mozilla/5.0");
+      if (upstream.status === 403) {
+        upstream = await fetchImageWithHeaders(rawUrl, "curl/8.5.0");
+      }
 
       // Fallback: if Wikia renamed/moved the image (404), resolve live File: via Fandom API
       if (!upstream.ok && upstream.status === 404) {
@@ -557,15 +592,7 @@ async function startServer() {
                   };
                   const liveUrl = Object.values(iJson.query?.pages || {})[0]?.imageinfo?.[0]?.url;
                   if (liveUrl && liveUrl.startsWith("https://static.wikia.nocookie.net/")) {
-                    upstream = await fetch(liveUrl, {
-                      headers: {
-                        "User-Agent":
-                          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-                        Referer: "https://gray-zone-warfare.fandom.com/",
-                        Accept: "image/avif,image/webp,image/png,image/*,*/*;q=0.8",
-                      },
-                      signal: AbortSignal.timeout(8000),
-                    });
+                    upstream = await fetchImageWithHeaders(liveUrl, "Mozilla/5.0");
                   }
                 }
               }
@@ -674,6 +701,49 @@ async function startServer() {
     }
   });
 
+  async function fetchDatasetRecords(dataset: string): Promise<NormalizedApiRecord[]> {
+    const cleanDataset = dataset.trim();
+    if (!/^[a-z0-9_]+$/i.test(cleanDataset)) {
+      throw new Error("Invalid dataset name");
+    }
+
+    const cached = datasetCache.get(cleanDataset);
+    if (cached && Date.now() - cached.fetchedAtMs < SEARCH_TTL_MS) {
+      return cached.records;
+    }
+
+    const records: NormalizedApiRecord[] = [];
+    let page = 1;
+    const maxPages = 12;
+    while (page <= maxPages) {
+      const upstreamRes = await fetch(
+        `${API_ROOT}/${encodeURIComponent(cleanDataset)}?page=${page}`,
+        { signal: AbortSignal.timeout(10000) }
+      );
+      if (!upstreamRes.ok) break;
+      const resp = (await upstreamRes.json()) as {
+        data?: Record<string, unknown>[];
+        totalPages?: number;
+        perPage?: number;
+      };
+      const batch = Array.isArray(resp.data) ? resp.data : [];
+      if (batch.length === 0) break;
+
+      const pageSize = resp.perPage || batch.length || 50;
+      records.push(
+        ...batch.map((item, idx) =>
+          normalizeRecord(cleanDataset, item, (page - 1) * pageSize + idx)
+        )
+      );
+      if (resp.totalPages && page >= resp.totalPages) break;
+      page += 1;
+    }
+
+    const clean = records.filter((r) => !r.name.startsWith("<DEV>"));
+    datasetCache.set(cleanDataset, { records: clean, fetchedAtMs: Date.now() });
+    return clean;
+  }
+
   app.get("/api/gzw/dataset/:name", async (req, res) => {
     const dataset = String(req.params.name || "").trim();
     if (!/^[a-z0-9_]+$/i.test(dataset)) {
@@ -681,44 +751,11 @@ async function startServer() {
       return;
     }
 
-    const cached = datasetCache.get(dataset);
-    if (cached && Date.now() - cached.fetchedAtMs < SEARCH_TTL_MS) {
-      res.json({ dataset, records: cached.records });
-      return;
-    }
-
     try {
-      const records: NormalizedApiRecord[] = [];
-      let page = 1;
-      const maxPages = 12;
-      while (page <= maxPages) {
-        const upstreamRes = await fetch(
-          `${API_ROOT}/${encodeURIComponent(dataset)}?page=${page}`,
-          { signal: AbortSignal.timeout(10000) }
-        );
-        if (!upstreamRes.ok) break;
-        const resp = (await upstreamRes.json()) as {
-          data?: Record<string, unknown>[];
-          totalPages?: number;
-          perPage?: number;
-        };
-        const batch = Array.isArray(resp.data) ? resp.data : [];
-        if (batch.length === 0) break;
-
-        const pageSize = resp.perPage || batch.length || 50;
-        records.push(
-          ...batch.map((item, idx) =>
-            normalizeRecord(dataset, item, (page - 1) * pageSize + idx)
-          )
-        );
-        if (resp.totalPages && page >= resp.totalPages) break;
-        page += 1;
-      }
-
-      const clean = records.filter((r) => !r.name.startsWith("<DEV>"));
-      datasetCache.set(dataset, { records: clean, fetchedAtMs: Date.now() });
-      res.json({ dataset, records: clean });
+      const records = await fetchDatasetRecords(dataset);
+      res.json({ dataset, records });
     } catch (err) {
+      const cached = datasetCache.get(dataset);
       if (cached) {
         res.json({ dataset, records: cached.records });
         return;
@@ -933,28 +970,23 @@ async function startServer() {
     };
   }
 
-  app.get("/api/gzw/task-wiki", async (req, res) => {
-    const rawName = String(req.query.name || "").trim();
-    const force = req.query.force === "1" || req.query.force === "true";
-    if (!rawName) {
-      res.status(400).json({ error: "Missing task name" });
-      return;
-    }
+  async function fetchTaskWikiData(rawName: string, force = false) {
+    const cleanName = rawName.trim();
+    if (!cleanName) return null;
 
-    const cacheKey = rawName.toLowerCase();
+    const cacheKey = cleanName.toLowerCase();
     const cached = taskWikiCache.get(cacheKey);
     if (
       cached &&
       !force &&
       Date.now() - cached.fetchedAtMs < TASK_WIKI_TTL_MS
     ) {
-      res.json(cached.data);
-      return;
+      return cached.data;
     }
 
     const pageCandidates = [
-      rawName.replace(/\s+/g, "_"),
-      rawName.replace(/['’]/g, "'").replace(/\s+/g, "_"),
+      cleanName.replace(/\s+/g, "_"),
+      cleanName.replace(/['’]/g, "'").replace(/\s+/g, "_"),
     ];
 
     for (const candidate of pageCandidates) {
@@ -978,19 +1010,35 @@ async function startServer() {
         if (!html) continue;
 
         const parsed = parseWikiTaskHtml(
-          rawName,
-          json.parse?.title || rawName,
+          cleanName,
+          json.parse?.title || cleanName,
           html
         );
         taskWikiCache.set(cacheKey, {
           data: parsed,
           fetchedAtMs: Date.now(),
         });
-        res.json(parsed);
-        return;
+        return parsed;
       } catch {
         // try next candidate
       }
+    }
+
+    return null;
+  }
+
+  app.get("/api/gzw/task-wiki", async (req, res) => {
+    const rawName = String(req.query.name || "").trim();
+    const force = req.query.force === "1" || req.query.force === "true";
+    if (!rawName) {
+      res.status(400).json({ error: "Missing task name" });
+      return;
+    }
+
+    const parsed = await fetchTaskWikiData(rawName, force);
+    if (parsed) {
+      res.json(parsed);
+      return;
     }
 
     res.json({
@@ -1021,8 +1069,9 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Lamang Operations server listening on http://0.0.0.0:${PORT}`);
-    // Pre-warm cache silently in background
+    // Pre-warm dataset bootstrap & Zoom-14 overview tiles silently in background
     fetchBootstrapFromGzw(false).catch(() => {});
+    prewarmOverviewTiles().catch(() => {});
   });
 }
 
