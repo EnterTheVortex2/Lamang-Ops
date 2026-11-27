@@ -11,10 +11,25 @@ import {
 import {
   ARCHIVE_AMMO,
   ARCHIVE_ARMOR,
+  ARCHIVE_BOSSES,
+  ARCHIVE_FACTIONS,
   ARCHIVE_FIELD_GUIDES,
+  ARCHIVE_INTEL_INDEX,
+  ARCHIVE_LOOT_CONTAINERS,
+  ARCHIVE_LOOT_ITEMS,
   ARCHIVE_MEDICAL,
   ARCHIVE_NVG,
+  ARCHIVE_OPTICS_DEVICES,
+  ARCHIVE_PATCH_NOTES,
+  ARCHIVE_PROVISIONS,
+  ARCHIVE_REGIONS,
+  ARCHIVE_SQUAD_ITEMS,
+  ARCHIVE_SQUAD_STRIKE,
   ARCHIVE_STORAGE,
+  ARCHIVE_UTILITY,
+  ARCHIVE_VENDORS,
+  ARCHIVE_XP_ACTIONS,
+  ARCHIVE_XP_LEVELS,
 } from "../data/fieldArchiveData";
 import {
   HIDEOUT_ROOMS,
@@ -118,7 +133,48 @@ const STOPWORDS = new Set([
   "treat",
   "penetrates",
   "penetrate",
+  "who",
+  "drops",
+  "drop",
 ]);
+
+function normalizeQuerySynonyms(raw: string): string {
+  const lower = raw.toLowerCase();
+  const additions: string[] = [];
+
+  if (/\b(latest|recent|newest|current)\b/.test(lower) && /\b(update|patch|version|notes|release)\b/.test(lower)) {
+    additions.push("0.5.1.1 0.5.1.0 0.5.0.0 changelog");
+  }
+  if (/\b(red dot|holo|sight|optics|magnifier)\b/.test(lower)) {
+    additions.push("collimator scope");
+  }
+  if (/\b(flashlight|light|torch|ir laser|laser)\b/.test(lower)) {
+    additions.push("tactical device");
+  }
+  if (/\b(ears|earpro|ear pro|headphones|comtac)\b/.test(lower)) {
+    additions.push("headset");
+  }
+  if (/\b(grenade|frag|flashbang|flash|smoke)\b/.test(lower)) {
+    additions.push("throwable grenade");
+  }
+  if (/\b(fix|broken|durability|clean|wear)\b/.test(lower)) {
+    additions.push("repair kit");
+  }
+  if (/\b(hungry|thirsty|eat|drink|food|water|stamina)\b/.test(lower)) {
+    additions.push("food drink provision energy hydration");
+  }
+  if (/\b(pvp|pve|teamkill|friendly fire|circle|red zone)\b/.test(lower)) {
+    additions.push("warfare joint operations conflict zones aggressor");
+  }
+  if (/\b(level up|leveling|xp|exp|rank)\b/.test(lower)) {
+    additions.push("experience level threshold");
+  }
+  if (/\b(valuable|valuables|sell|money|cash|jewel|jewelry)\b/.test(lower)) {
+    additions.push("jewellery loot sell price");
+  }
+
+  return additions.length > 0 ? `${raw} ${additions.join(" ")}` : raw;
+}
 
 function extractTokens(raw: string): string[] {
   return raw
@@ -128,10 +184,6 @@ function extractTokens(raw: string): string[] {
     .filter((t) => t.length >= 2 && !STOPWORDS.has(t));
 }
 
-/**
- * Scores an entity by heavily weighting direct title/name matches inside the user query,
- * plus token matches against name and secondary metadata.
- */
 function scoreEntity(
   primaryName: string,
   secondaryBlob: string,
@@ -151,8 +203,9 @@ function scoreEntity(
   let nameHits = 0;
   let totalHits = 0;
   for (const tok of tokens) {
-    const inName = nameLower.includes(tok);
-    const inSec = secLower.includes(tok);
+    const stem = tok.endsWith("s") && tok.length >= 4 ? tok.slice(0, -1) : tok;
+    const inName = nameLower.includes(tok) || (stem !== tok && nameLower.includes(stem));
+    const inSec = secLower.includes(tok) || (stem !== tok && secLower.includes(stem));
     if (inName) {
       nameHits += 1;
       totalHits += 1;
@@ -193,12 +246,14 @@ export function answerFromWebsiteKnowledge(
     .reverse()
     .find((m) => m.role === "user" && m.text.trim() !== trimmedQuery);
 
-  const effectiveQuery =
+  const combinedQuery =
     prevUser && isFollowUpQuery(trimmedQuery)
       ? `${trimmedQuery} ${prevUser.text}`
       : trimmedQuery;
 
+  const effectiveQuery = normalizeQuerySynonyms(combinedQuery);
   const qLower = effectiveQuery.toLowerCase();
+  const rawLower = combinedQuery.toLowerCase();
   const tokens = extractTokens(effectiveQuery);
   const ranked: RankedSection[] = [];
 
@@ -253,7 +308,7 @@ export function answerFromWebsiteKnowledge(
   // 1. Personal Operator Progress / Missing Materials Intent
   const asksPersonalProgress =
     /\b(my|i need|still need|missing|remaining|stash|progress|left to build|what should i)\b/i.test(
-      qLower
+      rawLower
     );
   if (asksPersonalProgress) {
     const ctx = kb.operatorContext;
@@ -308,7 +363,79 @@ export function answerFromWebsiteKnowledge(
     });
   }
 
-  // 2. Puzzle Doors (score primarily against name/sublocation/region/linkedTasks)
+  // 2. Patch Notes & Changelogs (0.5.0.0 through 0.5.1.1 + 0.5.2.0 Preview)
+  const asksPatchNotes =
+    /\b(0\.5|0\.5\.0|0\.5\.0\.1|0\.5\.0\.2|0\.5\.1|0\.5\.1\.0|0\.5\.1\.1|0\.5\.2|patch|patches|changelog|update|hotfix|rogue ops|breakthrough|rebalance|what changed)\b/i.test(
+      qLower
+    );
+  if (asksPatchNotes) {
+    const scoredPatches = ARCHIVE_PATCH_NOTES.map((p) => ({
+      p,
+      score:
+        scoreEntity(
+          `${p.version} ${p.title}`,
+          `${p.date} ${p.highlights.join(" ")} ${p.sections
+            .map((s) => `${s.heading} ${s.items.join(" ")}`)
+            .join(" ")}`,
+          qLower,
+          tokens
+        ) + (rawLower.includes(p.version.toLowerCase()) ? 120 : 25),
+    }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 2);
+
+    ranked.push({
+      score: Math.max(150, scoredPatches[0]?.score || 150),
+      source: "Field Archive · Patches",
+      markdown: scoredPatches
+        .map(({ p }) =>
+          [
+            `### ${p.title} (${p.date})`,
+            ...p.highlights.map((h) => `- ${h}`),
+          ].join("\n")
+        )
+        .join("\n\n"),
+    });
+  }
+
+  // 3. Bosses & Unique Boss Drops
+  const asksBoss = /\b(boss|bosses|like a boss)\b/i.test(rawLower);
+  const scoredBosses = ARCHIVE_BOSSES.map((b) => ({
+    b,
+    score:
+      scoreEntity(
+        b.name,
+        `${b.fullName} ${b.region} ${b.faction} ${b.notableGear.join(" ")} ${b.spawnLocations.join(
+          " "
+        )} ${b.linkedTasks.join(" ")}`,
+        qLower,
+        tokens
+      ) + (asksBoss ? 30 : 0),
+  }))
+    .filter((x) => x.score >= 38)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, asksBoss ? 5 : 2);
+
+  if (scoredBosses.length > 0 || asksBoss) {
+    const list = scoredBosses.length > 0 ? scoredBosses : ARCHIVE_BOSSES.slice(0, 6).map((b) => ({ b, score: 110 }));
+    ranked.push({
+      score: list[0].score + 15,
+      source: "Field Archive · Bosses",
+      markdown: [
+        "### Lamang Bosses & Unique Drops",
+        ...list.map(
+          ({ b }) =>
+            `- **${b.name}** (${b.region} · ${b.faction}) — *Spawns:* ${b.spawnLocations.join(
+              ", "
+            )}. *Drops:* **${b.notableGear.join(", ")}**${
+              b.linkedTasks.length > 0 ? ` · *Tasks:* ${b.linkedTasks.join(", ")}` : ""
+            }`
+        ),
+      ].join("\n"),
+    });
+  }
+
+  // 4. Puzzle Doors & Hacking Tools
   const puzzleDoors = getResolvedPuzzleDoors();
   const scoredPuzzles = puzzleDoors
     .map((p) => {
@@ -337,9 +464,7 @@ export function answerFromWebsiteKnowledge(
         `- **Location:** ${p.region} · ${p.sublocation} (\`Grid ${p.grid}\` · LZ: **${p.lz}**)`,
         `- **Requirement:** **${p.breachBadge}** (Hacking Tier: **${p.requiredHackingTier}**)`,
         `- **Power vs. Hack:** ${p.powerVsHackVerdict}`,
-        p.requiredKeys.length > 0
-          ? `- **Keys:** ${p.requiredKeys.join(", ")}`
-          : "",
+        p.requiredKeys.length > 0 ? `- **Keys:** ${p.requiredKeys.join(", ")}` : "",
         "**Breach Steps:**",
         ...p.steps.map(
           (s) =>
@@ -358,7 +483,6 @@ export function answerFromWebsiteKnowledge(
     });
   }
 
-  // 3. Hacking Tool Progression
   const wantsHackingGuide =
     /\b(hacking tool|hack door|hacking|basic hacking|advanced hacking|superior hacking|open channels|wider reach|unrestricted access)\b/i.test(
       qLower
@@ -402,7 +526,7 @@ export function answerFromWebsiteKnowledge(
     });
   }
 
-  // 4. Keys & Keycards
+  // 5. Keys & Keycards
   const scoredKeys = kb.keysCatalog
     .map((k) => ({
       k,
@@ -429,9 +553,7 @@ export function answerFromWebsiteKnowledge(
           ({ k }) =>
             `- **${k.name}** (${k.kind}) — ${k.region}${
               k.sublocation ? ` · ${k.sublocation}` : ""
-            } (\`Grid ${k.grid}\` · LZ: **${k.lz}**). Unlocks: **${
-              k.doorTarget
-            }**${
+            } (\`Grid ${k.grid}\` · LZ: **${k.lz}**). Unlocks: **${k.doorTarget}**${
               k.linkedTasks.length > 0
                 ? ` · Tasks: ${k.linkedTasks.map((t) => t.name).join(", ")}`
                 : ""
@@ -441,7 +563,7 @@ export function answerFromWebsiteKnowledge(
     });
   }
 
-  // 5. Disassembly Recipes & Yields
+  // 6. Disassembly Recipes & Yields
   const scoredDisassembly = kb.disassemblyRecipes
     .map((d) => {
       const spawnSummary = getDisassemblySpawnSummary(d.name);
@@ -481,7 +603,7 @@ export function answerFromWebsiteKnowledge(
     });
   }
 
-  // 6. Hideout Materials & Upgrades
+  // 7. Hideout Materials & Upgrades
   const scoredMaterials = kb.catalog
     .map((m) => ({
       m,
@@ -562,7 +684,7 @@ export function answerFromWebsiteKnowledge(
     });
   }
 
-  // 7. Tasks & Walkthroughs
+  // 8. Tasks & Squad Strike Missions
   const scoredTasks = kb.allTasks
     .map((t) => ({
       t,
@@ -613,7 +735,55 @@ export function answerFromWebsiteKnowledge(
     });
   }
 
-  // 8. Weapons & Attachment Compatibility Chains
+  const scoredSquad = ARCHIVE_SQUAD_STRIKE.map((s) => ({
+    s,
+    score: scoreEntity(
+      s.name,
+      `squad strike ${s.vendor} ${s.location}`,
+      qLower,
+      tokens
+    ),
+  }))
+    .filter((x) => x.score >= 38)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6);
+
+  if (scoredSquad.length > 0) {
+    ranked.push({
+      score: scoredSquad[0].score,
+      source: "Field Archive · Squad Strike",
+      markdown: [
+        "### Squad Strike Missions",
+        ...scoredSquad.map(
+          ({ s }) => `- **${s.name}** — **${s.vendor}** · Location: **${s.location}**`
+        ),
+      ].join("\n"),
+    });
+  }
+
+  const scoredSquadItems = ARCHIVE_SQUAD_ITEMS.map((i) => ({
+    i,
+    score: scoreEntity(i.name, "squad strike item", qLower, tokens),
+  }))
+    .filter((x) => x.score >= 46)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+
+  if (scoredSquadItems.length > 0) {
+    ranked.push({
+      score: scoredSquadItems[0].score,
+      source: "Field Archive · Squad Strike",
+      markdown: [
+        "### Squad Strike Mission Items",
+        ...scoredSquadItems.map(
+          ({ i }) =>
+            `- **${i.name}** (${i.gridSize || "1x1"}${i.weight ? ` · ${i.weight}` : ""})`
+        ),
+      ].join("\n"),
+    });
+  }
+
+  // 9. Weapons & Attachment Compatibility Chains
   const scoredWeapons = WEAPONS_CATALOG.map((w) => ({
     w,
     score: scoreEntity(
@@ -684,7 +854,95 @@ export function answerFromWebsiteKnowledge(
     });
   }
 
-  // 9. Field Archive: Ammo, Armor, Medical, NVGs, Storage & Guides
+  // 10. Optics, Scopes, Collimators, Binoculars, Tactical Lasers & Lights
+  const asksOpticsCat = /\b(scopes?|collimators?|optics?|red dots?|magnifiers?|lasers?|flashlights?|binoculars?|rangefinders?)\b/i.test(
+    rawLower
+  );
+  const scoredOptics = ARCHIVE_OPTICS_DEVICES.map((o) => ({
+    o,
+    score:
+      scoreEntity(
+        o.name,
+        `${o.category} ${o.magnification || ""} ${o.sightingRange || ""} ${o.modes || ""} ${
+          o.manufacturer || ""
+        } ${o.soldBy} scope optic collimator red dot laser flashlight rangefinder binocular`,
+        qLower,
+        tokens
+      ) + (asksOpticsCat && o.category.toLowerCase().includes("scope") && /\bscopes?\b/i.test(rawLower) ? 25 : asksOpticsCat ? 15 : 0),
+  }))
+    .filter((x) => x.score >= 34)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8);
+
+  if (scoredOptics.length > 0) {
+    ranked.push({
+      score: scoredOptics[0].score + 10,
+      source: "Field Archive · Optics",
+      markdown: [
+        "### Archive · Optics, Rangefinders & Tactical Devices",
+        ...scoredOptics.map(
+          ({ o }) =>
+            `- **${o.name}** (${o.category}) — ${
+              o.magnification ? `**${o.magnification}** · ` : ""
+            }${o.sightingRange ? `Range ${o.sightingRange} · ` : ""}${
+              o.modes ? `Modes: ${o.modes} · ` : ""
+            }**${o.soldBy}**${o.buyPrice ? ` (${o.buyPrice})` : ""}`
+        ),
+      ].join("\n"),
+    });
+  }
+
+  // 11. Headsets, Throwables, Repair Kits, Mortar Rounds & Lockboxes
+  const asksHeadsetCat = /\b(headsets?|earpro|ear pro|headphones?|sound amplification|comtac|gssh)\b/i.test(
+    rawLower
+  );
+  const asksGrenadeCat = /\b(grenades?|throwables?|frags?|flashbangs?|stuns?|smokes?|m67|f-1|m84|m18)\b/i.test(
+    rawLower
+  );
+  const asksRepairCat = /\b(repair|durability|cleaning set|tool set)\b/i.test(rawLower);
+  const asksMortarCat = /\b(mortar|120mm|m933)\b/i.test(rawLower);
+  const asksLockboxCat = /\b(lockbox|secure case|safelock|snuck)\b/i.test(rawLower);
+
+  const scoredUtility = ARCHIVE_UTILITY.map((u) => {
+    const catLower = u.category.toLowerCase();
+    let catBoost = 0;
+    if (asksHeadsetCat && catLower.includes("headset")) catBoost += 85;
+    if (asksGrenadeCat && catLower.includes("grenade")) catBoost += 85;
+    if (asksRepairCat && catLower.includes("repair")) catBoost += 75;
+    if (asksMortarCat && catLower.includes("mortar")) catBoost += 85;
+    if (asksLockboxCat && catLower.includes("lockbox")) catBoost += 85;
+    return {
+      u,
+      score:
+        scoreEntity(
+          u.name,
+          `${u.category} ${u.statSummary} ${u.soldBy} headset repair kit grenade throwable smoke stun mortar lockbox`,
+          qLower,
+          tokens
+        ) + catBoost,
+    };
+  })
+    .filter((x) => x.score >= 34)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10);
+
+  if (scoredUtility.length > 0) {
+    ranked.push({
+      score: scoredUtility[0].score + 10,
+      source: "Field Archive · Gear & Repair",
+      markdown: [
+        "### Archive · Headsets, Throwables, Repair Kits & Utility",
+        ...scoredUtility.map(
+          ({ u }) =>
+            `- **${u.name}** (${u.category}) — ${u.statSummary} · **${u.soldBy}**${
+              u.buyPrice ? ` (Buy ${u.buyPrice})` : ""
+            }${u.sellPrice ? ` · Sell ${u.sellPrice}` : ""}`
+        ),
+      ].join("\n"),
+    });
+  }
+
+  // 12. Ammo, Armor, Medical, Provisions, NVGs, Storage
   const scoredAmmo = ARCHIVE_AMMO.map((a) => ({
     a,
     score: scoreEntity(
@@ -701,7 +959,7 @@ export function answerFromWebsiteKnowledge(
   if (scoredAmmo.length > 0) {
     ranked.push({
       score: scoredAmmo[0].score + 10,
-      source: "Field Archive",
+      source: "Field Archive · Ammo",
       markdown: [
         "### Archive · Ammo & Penetration",
         ...scoredAmmo.map(
@@ -732,7 +990,7 @@ export function answerFromWebsiteKnowledge(
   if (scoredArmor.length > 0) {
     ranked.push({
       score: scoredArmor[0].score,
-      source: "Field Archive",
+      source: "Field Archive · Armor",
       markdown: [
         "### Archive · Armor & Helmets",
         ...scoredArmor.map(
@@ -761,7 +1019,7 @@ export function answerFromWebsiteKnowledge(
   if (scoredMed.length > 0) {
     ranked.push({
       score: scoredMed[0].score,
-      source: "Field Archive",
+      source: "Field Archive · Medical",
       markdown: [
         "### Archive · Medical & Triage",
         ...scoredMed.map(
@@ -769,6 +1027,41 @@ export function answerFromWebsiteKnowledge(
             `- **${m.name}** (${m.category}) — ${m.effect} · **${m.soldBy}**${
               m.buyPrice ? ` (${m.buyPrice})` : ""
             }`
+        ),
+      ].join("\n"),
+    });
+  }
+
+  const scoredProvisions = ARCHIVE_PROVISIONS.map((p) => ({
+    p,
+    score: scoreEntity(
+      p.name,
+      `${p.category} ${p.energy || ""} ${p.hydration || ""} ${
+        p.effect || ""
+      } ${p.soldBy} food drink provision energy hydration`,
+      qLower,
+      tokens
+    ),
+  }))
+    .filter((x) => x.score >= 34)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6);
+
+  if (scoredProvisions.length > 0) {
+    ranked.push({
+      score: scoredProvisions[0].score,
+      source: "Field Archive · Provisions",
+      markdown: [
+        "### Archive · Food, Drinks & Energy",
+        ...scoredProvisions.map(
+          ({ p }) =>
+            `- **${p.name}** (${p.category}) — ${[
+              p.energy ? `Energy ${p.energy}` : null,
+              p.hydration ? `Hydration ${p.hydration}` : null,
+              p.effect,
+            ]
+              .filter(Boolean)
+              .join(" · ")} · **${p.soldBy}**${p.buyPrice ? ` (${p.buyPrice})` : ""}`
         ),
       ].join("\n"),
     });
@@ -790,7 +1083,7 @@ export function answerFromWebsiteKnowledge(
   if (scoredNvg.length > 0) {
     ranked.push({
       score: scoredNvg[0].score,
-      source: "Field Archive",
+      source: "Field Archive · NVGs",
       markdown: [
         "### Archive · Night Vision (NVGs)",
         ...scoredNvg.map(
@@ -809,12 +1102,12 @@ export function answerFromWebsiteKnowledge(
   }))
     .filter((x) => x.score >= 36)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 4);
+    .slice(0, 5);
 
   if (scoredStorage.length > 0) {
     ranked.push({
       score: scoredStorage[0].score,
-      source: "Field Archive",
+      source: "Field Archive · Storage",
       markdown: [
         "### Archive · Backpacks, Rigs & Cases",
         ...scoredStorage.map(
@@ -829,6 +1122,147 @@ export function answerFromWebsiteKnowledge(
     });
   }
 
+  // 13. High-Value Loot, Loot Containers, XP/Levels, Factions, Vendors, Intels
+  const scoredLoot = ARCHIVE_LOOT_ITEMS.map((i) => ({
+    i,
+    score: scoreEntity(
+      i.name,
+      `${i.category} ${i.sellPrice || ""} jewellery loot sell price`,
+      qLower,
+      tokens
+    ),
+  }))
+    .filter((x) => x.score >= 42)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6);
+
+  if (scoredLoot.length > 0) {
+    ranked.push({
+      score: scoredLoot[0].score,
+      source: "Field Archive · Loot & Valuables",
+      markdown: [
+        "### Archive · Loot & Jewellery Values",
+        ...scoredLoot.map(
+          ({ i }) =>
+            `- **${i.name}** (${i.category}) — Sell: **${i.sellPrice || "—"}**${
+              i.pricePerCell ? ` (${i.pricePerCell}/cell)` : ""
+            }${i.gridSize ? ` · Size ${i.gridSize}` : ""}`
+        ),
+      ].join("\n"),
+    });
+  }
+
+  const scoredContainers = ARCHIVE_LOOT_CONTAINERS.map((c) => ({
+    c,
+    score: scoreEntity(c.name, `loot container ${c.layout}`, qLower, tokens),
+  }))
+    .filter((x) => x.score >= 44)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6);
+
+  if (scoredContainers.length > 0) {
+    ranked.push({
+      score: scoredContainers[0].score,
+      source: "Field Archive · Loot Containers",
+      markdown: [
+        "### Archive · World Loot Containers",
+        ...scoredContainers.map(
+          ({ c }) => `- **${c.name}** — Layout: **${c.layout}**`
+        ),
+      ].join("\n"),
+    });
+  }
+
+  if (/\b(xp|exp|experience|level|rank|threshold)\b/i.test(qLower)) {
+    const matchedLvl = rawLower.match(/\blevel\s*(\d{1,2})\b/);
+    const specificLevel = matchedLvl
+      ? ARCHIVE_XP_LEVELS.find((l) => l.level === Number(matchedLvl[1]))
+      : null;
+
+    ranked.push({
+      score: 135,
+      source: "Field Archive · XP & Ranks",
+      markdown: [
+        "### Experience (XP) & Rank Progression",
+        ...ARCHIVE_XP_ACTIONS.map(
+          (a) => `- **${a.action}** (${a.category}): **+${a.xp} XP**`
+        ),
+        ...(specificLevel
+          ? [
+              `- **Level ${specificLevel.level} Requirement:** **${specificLevel.threshold.toLocaleString()} XP**${
+                specificLevel.rewards.length > 0
+                  ? ` · Unlocks: ${specificLevel.rewards.join(", ")}`
+                  : ""
+              }`,
+            ]
+          : [
+              `- **Milestone Ranks:** Level 10 (${ARCHIVE_XP_LEVELS[9]?.threshold.toLocaleString()} XP), Level 25 (${ARCHIVE_XP_LEVELS[24]?.threshold.toLocaleString()} XP), Level 40 (${ARCHIVE_XP_LEVELS[39]?.threshold.toLocaleString()} XP), Level 50 (${ARCHIVE_XP_LEVELS[49]?.threshold.toLocaleString()} XP).`,
+            ]),
+      ].join("\n"),
+    });
+  }
+
+  const scoredFactions = ARCHIVE_FACTIONS.map((f) => ({
+    f,
+    score: scoreEntity(f.name, `faction pmc ${f.description}`, qLower, tokens),
+  }))
+    .filter((x) => x.score >= 45)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+
+  if (scoredFactions.length > 0) {
+    ranked.push({
+      score: scoredFactions[0].score,
+      source: "Field Archive · Factions",
+      markdown: [
+        "### Lamang Factions",
+        ...scoredFactions.map(({ f }) => `- **${f.name}:** ${f.description}`),
+      ].join("\n"),
+    });
+  }
+
+  const scoredVendorProfiles = ARCHIVE_VENDORS.map((v) => ({
+    v,
+    score: scoreEntity(v.name, `vendor trader ${v.fullName} ${v.sells} ${v.buys}`, qLower, tokens),
+  }))
+    .filter((x) => x.score >= 45)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4);
+
+  if (scoredVendorProfiles.length > 0) {
+    ranked.push({
+      score: scoredVendorProfiles[0].score - 5,
+      source: "Field Archive · Vendors",
+      markdown: [
+        "### Vendor Profiles",
+        ...scoredVendorProfiles.map(
+          ({ v }) =>
+            `- **${v.name}** (${v.fullName}) — *Sells:* ${v.sells} · *Buys:* ${v.buys}`
+        ),
+      ].join("\n"),
+    });
+  }
+
+  const scoredIntels = ARCHIVE_INTEL_INDEX.map((it) => ({
+    it,
+    score: scoreEntity(it.name, `${it.kind}`, qLower, tokens),
+  }))
+    .filter((x) => x.score >= 52)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+
+  if (scoredIntels.length > 0) {
+    ranked.push({
+      score: scoredIntels[0].score - 5,
+      source: "Field Archive · Intel",
+      markdown: [
+        "### Matching Intels, Evidence & Military Gear",
+        ...scoredIntels.map(({ it }) => `- **${it.name}** (${it.kind})`),
+      ].join("\n"),
+    });
+  }
+
+  // 14. Field Manuals & Guides
   const scoredGuides = ARCHIVE_FIELD_GUIDES.map((g) => ({
     g,
     score: scoreEntity(
@@ -838,27 +1272,27 @@ export function answerFromWebsiteKnowledge(
       tokens
     ),
   }))
-    .filter((x) => x.score >= 36)
+    .filter((x) => x.score >= 34)
     .sort((a, b) => b.score - a.score)
     .slice(0, 2);
 
   if (scoredGuides.length > 0) {
     for (const { g, score } of scoredGuides) {
       ranked.push({
-        score: score + 8,
-        source: "Field Archive",
+        score: score + 10,
+        source: "Field Archive · Manuals",
         markdown: [`### Guide: ${g.title}`, ...g.bullets.map((b) => `- ${b}`)].join("\n"),
       });
     }
   }
 
-  // 10. Vendor Stock & Map POIs
+  // 15. Vendor Stock & Map POIs & Regions
   const scoredVendor = kb.vendorShopItems
     .map((v) => ({
       v,
       score: scoreEntity(v.itemName, `${v.vendor} ${v.shopGroup} ${v.type}`, qLower, tokens),
     }))
-    .filter((x) => x.score >= 45)
+    .filter((x) => x.score >= 46)
     .sort((a, b) => b.score - a.score)
     .slice(0, 6);
 
@@ -877,6 +1311,14 @@ export function answerFromWebsiteKnowledge(
       ].join("\n"),
     });
   }
+
+  const matchedRegions = ARCHIVE_REGIONS.map((r) => ({
+    r,
+    score: scoreEntity(r.name, `${r.enemies} ${r.lzCallsign} tier ${r.tier}`, qLower, tokens),
+  }))
+    .filter((x) => x.score >= 52)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2);
 
   const matchedPois = LAMANG_POIS.map((p) => ({
     p,
@@ -904,16 +1346,18 @@ export function answerFromWebsiteKnowledge(
     .sort((a, b) => b.score - a.score)
     .slice(0, 4);
 
-  if (matchedPois.length > 0 || matchedSpecialAreas.length > 0) {
+  if (matchedPois.length > 0 || matchedSpecialAreas.length > 0 || matchedRegions.length > 0) {
     const topPoiScore = Math.max(
       matchedPois[0]?.score || 0,
-      matchedSpecialAreas[0]?.score || 0
+      matchedSpecialAreas[0]?.score || 0,
+      matchedRegions[0]?.score || 0
     );
     ranked.push({
       score: topPoiScore - 10,
       source: "Tactical Map",
       markdown: [
-        "### Lamang Map Locations",
+        "### Lamang Map & Region Intel",
+        ...matchedRegions.map(({ r }) => `- **${r.name}:** ${r.description}`),
         ...matchedPois.map(
           ({ p }) =>
             `- **${
@@ -936,19 +1380,23 @@ export function answerFromWebsiteKnowledge(
   }
 
   ranked.sort((a, b) => b.score - a.score);
-  const topSections = ranked.slice(0, 3);
+  const bestScore = ranked[0]?.score || 0;
+  const topSections = ranked
+    .filter((s, idx) => idx === 0 || s.score >= Math.max(42, bestScore * 0.42))
+    .slice(0, 3);
 
   if (topSections.length === 0) {
     return {
       reply: [
         `No exact match found for **"${trimmedQuery}"** in the built-in Lamang Operations database.`,
         "",
-        "**Try asking with specific keywords like:**",
-        "- **Hideout & Materials:** `Server CPU`, `Generator Level 2`, `what materials do I still need?`",
-        "- **Disassembly:** `Manpack Tactical Radio`, `Portable SATCOM Terminal`",
+        "**Try asking about:**",
+        "- **Updates (0.5–0.5.1.1):** `What changed in 0.5.1.0?`, `0.5.1.1 hotfix`, `0.5.2.0 Breakthrough`",
+        "- **Bosses & Drops:** `Where does Yen spawn?`, `Viper loadout`, `All bosses`",
+        "- **Hideout & Materials:** `Server CPU`, `what materials do I still need?`, `Manpack Tactical Radio`",
         "- **Doors & Hacking:** `RLSL-1 Telescope`, `Superior Hacking Tool`, `A208`",
-        "- **Field Archive:** `5.56 M855A1`, `NIJ III++`, `how to treat bleeding`, `AN/PVS-31A`, `Key Case`",
-        "- **Weapons & Map:** `AK-74M attachments`, `FAMAS`, `Grid 151 140`, `Fort Narith`",
+        "- **Gear, Optics & Survival:** `Vudu 1-6x24`, `Gunsmith Tool Set`, `3M Comtac II`, `F-1 grenade`, `how to treat heavy bleeding`",
+        "- **Modes, Loot & XP:** `Conflict Zones`, `Aggressor status`, `Squad Strike`, `Diamond Ring`, `XP actions`",
       ].join("\n"),
       sourcesUsed: ["Website Intel"],
     };

@@ -1420,14 +1420,15 @@ export default function App() {
             onClick={() => setChatOpen(true)}
             aria-label="Open Tactical AI Intel Chatbot"
             aria-expanded={chatOpen}
-            title="Ask Tactical AI Intel about anything in the app or live API"
-            className={`min-h-[44px] lg:min-h-[32px] inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors whitespace-nowrap shrink-0 ${
+            title="Ask Tactical AI Intel about anything in the app or Field Archive"
+            className={`min-h-[44px] lg:min-h-[32px] inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl lg:rounded-lg text-xs font-semibold border transition-colors whitespace-nowrap shrink-0 ${
               chatOpen
                 ? "bg-[#e5a93c]/20 border-[#e5a93c]/60 text-[#fde68a]"
-                : "bg-[#141b26] border-[#38bdf8]/40 text-[#e0f2fe] hover:border-[#e5a93c]/60 hover:text-white"
+                : "bg-[#141b26] border-[#38bdf8]/45 text-[#e0f2fe] hover:border-[#e5a93c]/60 hover:text-white active:bg-[#1e293b]"
             }`}
           >
-            <Bot className="w-3.5 h-3.5 text-[#e5a93c] shrink-0" />
+            <Bot className="w-4 h-4 lg:w-3.5 lg:h-3.5 text-[#e5a93c] shrink-0" />
+            <span className="sm:hidden">AI</span>
             <span className="hidden sm:inline">AI Intel</span>
           </button>
 
@@ -1869,10 +1870,10 @@ export default function App() {
         </div>
       </main>
 
-      {/* Mobile 5-Tab Bottom Navigation Bar (< lg only, 64px height + 52px header = 116px <= 15% of 844px) */}
+      {/* Mobile 5-Tab Bottom Navigation Bar (< lg only, safe-area aware) */}
       <nav
         aria-label="Mobile navigation"
-        className="lg:hidden h-16 shrink-0 border-t border-white/[0.08] bg-[#0a0e14]/96 backdrop-blur-lg grid grid-cols-5 z-30"
+        className="lg:hidden min-h-[4rem] pb-[env(safe-area-inset-bottom)] shrink-0 border-t border-white/[0.08] bg-[#0a0e14]/96 backdrop-blur-lg grid grid-cols-5 z-30"
       >
         <button
           type="button"
@@ -2043,6 +2044,21 @@ export default function App() {
                     <span className="font-mono-tabular text-xs text-[#8899ae]">
                       {ownedKeysCount}/{keysCatalog.length}
                     </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileDrawerOpen(false);
+                      setChatOpen(true);
+                    }}
+                    className="min-h-[48px] px-4 py-3 rounded-xl border bg-[#141b26] border-[#e5a93c]/45 text-[#f8fafc] flex items-center justify-between text-sm font-medium transition-colors"
+                  >
+                    <span className="inline-flex items-center gap-2.5">
+                      <Bot className="w-4 h-4 text-[#e5a93c]" />
+                      <span>Tactical AI Intel Chatbot</span>
+                    </span>
+                    <span className="text-[11px] text-[#fde68a]">Offline</span>
                   </button>
 
                   <button

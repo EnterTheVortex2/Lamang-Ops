@@ -29,11 +29,30 @@
     width: 100%;
     margin: 0;
     padding: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
     background-color: var(--bg-canvas);
     color: #e8eef5;
     font-family: var(--font-sans);
     letter-spacing: 0.005em;
     -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  [role="button"],
+  a,
+  input,
+  textarea,
+  select {
+    touch-action: manipulation;
+  }
+
+  @media (max-width: 639px) {
+    input,
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
   }
 }
 
